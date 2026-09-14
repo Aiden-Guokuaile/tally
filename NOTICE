@@ -1,0 +1,58 @@
+# NOTICE
+
+以下文件移植自 Atoll（https://github.com/Ebullioscopic/Atoll），
+Copyright (C) 2024-2026 Atoll Contributors，GPL-3.0，见 LICENSE。
+带改动的文件在文件头第二行注明了改了什么；其余除文件头外逐字未动。
+
+- Sources/Tally/Usage/UsageProvider.swift ← DynamicIsland/managers/LLMUsage/UsageProvider.swift
+- Sources/Tally/Usage/JSONLUsageParser.swift ← DynamicIsland/managers/LLMUsage/JSONLUsageParser.swift
+- Sources/Tally/Usage/ModelPricing.swift ← DynamicIsland/managers/LLMUsage/ModelPricing.swift
+- Sources/Tally/Usage/ModelPricingManager.swift ← DynamicIsland/managers/LLMUsage/ModelPricingManager.swift
+- Sources/Tally/Usage/KeychainReader.swift ← DynamicIsland/managers/LLMUsage/Quota/KeychainReader.swift
+- Sources/Tally/Usage/Providers/ClaudeUsageProvider.swift ← DynamicIsland/managers/LLMUsage/ClaudeUsageProvider.swift
+- Sources/Tally/Usage/Providers/CodexUsageProvider.swift ← DynamicIsland/managers/LLMUsage/CodexUsageProvider.swift
+- Sources/Tally/Usage/Providers/CodexQuotaClient.swift ← DynamicIsland/managers/LLMUsage/Quota/CodexQuotaClient.swift
+- Sources/Tally/Usage/Providers/AntigravityUsageProvider.swift ← DynamicIsland/managers/LLMUsage/AntigravityUsageProvider.swift
+- Sources/Tally/Usage/Providers/CursorUsageProvider.swift ← DynamicIsland/managers/LLMUsage/CursorUsageProvider.swift
+- Sources/Tally/Usage/Providers/CursorQuotaClient.swift ← DynamicIsland/managers/LLMUsage/Quota/CursorQuotaClient.swift
+- Sources/Tally/Usage/Providers/CursorQuotaPayload.swift ← DynamicIsland/managers/LLMUsage/Quota/CursorQuotaPayload.swift
+- Sources/Tally/Usage/Providers/CursorTokenStore.swift ← DynamicIsland/managers/LLMUsage/Quota/CursorTokenStore.swift
+- Tests/TallyTests/JSONLUsageParserTests.swift ← DynamicIslandTests/JSONLUsageParserTests.swift
+- Resources/pricing.json ← DynamicIsland/managers/LLMUsage/pricing.json
+
+「文件架」页的交互形态（拖到刘海暂存、拖出、AirDrop、到期清理）参考 NotchDrop（https://github.com/Lakr233/NotchDrop，
+Copyright (c) 2024 Lakr Aream，MIT），代码为重写，未复制其源文件。
+
+以下提供方标志取自 Lobe Icons（https://github.com/lobehub/lobe-icons，Copyright (c) 2023 LobeHub，MIT），
+经 Pulse（https://github.com/qunqin24/Pulse，Apache-2.0）整理的版本，原样未改：
+
+- Resources/logos/claude.svg
+- Resources/logos/openai.svg
+- Resources/logos/cursor.svg
+- Resources/logos/antigravity.svg
+
+MIT 许可原文：
+
+MIT License
+
+Copyright (c) 2023 LobeHub
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Claude、OpenAI、Cursor、Antigravity 的名称与标志归各自所有者，放在这里只用来标明是哪家的会话与用量。

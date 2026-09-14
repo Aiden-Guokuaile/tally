@@ -1,0 +1,16 @@
+# Swift 构建产物
+/.build/
+/build/
+
+# macOS
+.DS_Store
+
+# .omc/ = Claude 侧、.omx/ = Codex 侧运行时状态，换台机器重新生成
+.omc/
+.omx/
+# .claude 下只忽略本地设置，项目约定与仓库级摩擦记录要入库
+.claude/*
+!.claude/CLAUDE.md
+!.claude/PAPERCUTS.md
+*.xcuserstate
+*.xcworkspace/xcuserdata/
