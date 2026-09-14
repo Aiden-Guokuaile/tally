@@ -42,7 +42,8 @@ final class LidSleepBlocker {
     /// 保持唤醒没开就一起开——`SleepDisabled` 只挡合盖，闲置休眠仍旧归断言管。
     func enable() async -> Bool {
         failure = nil
-        if !passwordless, !(await installPasswordless()) { return false }
+        // 演示模式只亮开关：装免密规则要弹管理员密码框（setDisableSleep 那边同样不跑 sudo）
+        if !passwordless, !DemoMode.isOn, !(await installPasswordless()) { return false }
         guard Self.setDisableSleep(true) else {
             refreshPasswordless()
             failure = "pmset 没执行成功，免密规则可能被删了"
@@ -124,6 +125,8 @@ final class LidSleepBlocker {
 
     /// 免密置位 / 抹掉。命令必须和 sudoers 里写的逐字一致，否则免密不生效、静默失败。
     private static func setDisableSleep(_ on: Bool) -> Bool {
+        // 演示模式当作成了：开关照亮、照灭，系统级的合盖设置一点不动
+        guard !DemoMode.isOn else { return true }
         let ok = run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "-a", "disablesleep", on ? "1" : "0"])
         if !ok { Log.error("pmset -a disablesleep \(on ? 1 : 0) 没成功，免密规则可能不在了") }
         return ok

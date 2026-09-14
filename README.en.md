@@ -1,14 +1,21 @@
 <div align="center">
 
+<img src="docs/images/icon.png" width="112" alt="Tally icon">
+
 # Tally
 
-**Claude Code / Codex session status and AI quotas, living in your MacBook notch: who is waiting on you, what just finished, and how much quota is left — at a glance.**
+**Claude Code / Codex session status and AI quotas, living in your MacBook notch**<br>
+Who is waiting on you, what just finished, how much quota is left — hover and you know.
 
 [简体中文](README.md) | English
 
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
+<a href="https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg"><img src="docs/images/download-en.svg" width="268" alt="Download Tally for macOS"></a>
 
-**[⬇ Download Tally.dmg](https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg)**
+Or with Homebrew (no quarantine step): `brew install --cask aiden-guokuaile/tally/tally`
+
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
+
+<img src="docs/images/hero.gif" width="820" alt="The notch drops a toast when a session finishes, then expands on hover and switches between the AI, Network and System pages">
 
 </div>
 
@@ -17,65 +24,54 @@
 
 With several agent sessions open you keep switching windows to see which one needs approval and which one is done, and you rarely notice a quota running out. Tally tucks all of that into the notch: it blends in with the notch until something happens, drops a small toast when it does, and expands into a full panel when you hover.
 
-## Highlights
+## Why Tally
 
-- **Every session at a glance**: Claude Code and Codex sessions grouped into "waiting on you / working / recent", with approval, input, compacting and done states.
+- **See who needs you at a glance**: Claude Code and Codex sessions grouped into "waiting on you / working / recent"; when one needs approval, needs input or finishes, the notch drops a toast with a sound.
 - **States you can trust**: Esc interrupts, API errors, and background subagents still running after the main turn ends are all handled — cases the hooks never report — so nothing stays stuck on "working".
-- **Back to the terminal in one click**: click a row (or ⌘1–⌘9, ⌘0) to jump to that session's terminal tab, tmux panes included; closed sessions live on a separate "已关闭" (Closed) page of the sessions card, with a "接着聊" (Resume) button that reopens them in a new window.
-- **Every provider side by side**: Claude, Codex, Cursor and Antigravity, plus DeepSeek, Kimi, Zhipu GLM and New API relays (off by default); Claude and Codex also show today / this week's spend and a pace line that tells you whether you'll run out before the reset. Alerts fire at 80% and when a quota is exhausted, and a window you were alerted about tells you when it resets.
-- **Credentials without nagging**: reads the tokens each tool already stored, read-only — never refreshes them, never writes to the Keychain, normally no permission prompts.
-- **Handy extras**: network throughput and proxy status, memory and battery, running apps, a file shelf (drag to the notch, `open -a Tally <file>`, or new screenshots automatically), keep-awake (including with the lid closed), plus an optional menu bar dinosaur that sleeps, runs and sprints with CPU load, sprints or gets angry when memory runs tight, and keeps an egg beside it that fills up with memory use.
-- **Local and dependency-free**: native SwiftUI + AppKit, no third-party dependencies, no telemetry.
+- **Back to the terminal in one click**: click a row (or ⌘1–⌘9, ⌘0) to jump to that session's terminal tab, tmux panes included; closed sessions can be resumed in a new window.
+- **Every provider side by side**: Claude, Codex, Cursor and Antigravity, plus DeepSeek, Kimi, Zhipu GLM and New API relays; Claude and Codex also show today / this week's spend and a pace line that tells you whether you'll run out before the reset, with alerts at 80% and when a quota is exhausted.
+- **Local, native, dependency-free**: SwiftUI + AppKit; reads the tokens each tool already stored, read-only (never refreshes them, never writes to the Keychain); no telemetry.
+
+Also on board: network throughput and proxy status, memory and battery, running apps, a file shelf, keep-awake (including with the lid closed), and an optional menu bar dinosaur.
 
 ## Pages
 
-- **AI**: session list plus a usage row per provider. Rows show the provider logo and model (e.g. Opus 5, gpt-6-astra). When a session finishes or needs you, the notch drops a toast with a sound — except while the panel is open, or when the session's Ghostty / Terminal.app / iTerm2 tab is already in front. With the lid closed and only external displays, alerts arrive as system notifications instead.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/ai.png" alt="AI page: session list and provider usage"><br><b>AI</b>: sessions + a usage row per provider</td>
+    <td width="50%"><img src="docs/images/network.png" alt="Network page: throughput, Wi-Fi, IP and proxy"><br><b>Network</b>: throughput, Wi-Fi, IP, proxy</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/system.png" alt="System page: CPU, memory, battery and Trash"><br><b>System</b>: CPU, memory, battery, Trash</td>
+    <td width="50%"><img src="docs/images/apps.png" alt="Apps page: running apps sorted by memory"><br><b>Apps</b>: running apps by memory</td>
+  </tr>
+</table>
+
+- **AI**: rows show the provider logo and model. When a session finishes or needs you, the notch drops a toast with a sound — except while the panel is open, or when the session's Ghostty / Terminal.app / iTerm2 tab is already in front. With the lid closed and only external displays, alerts arrive as system notifications instead.
 - **Network**: interface throughput (60-second sparkline), Wi-Fi signal, local IP, gateway, DNS; with a system proxy or proxy app running, an extra card identifies the app, its ports and whether TUN is present (plus the mode, when the mihomo core's control socket is available).
 - **System**: chip, memory, CPU, disk, uptime, battery health, top memory users, Trash size with one-click empty.
 - **Apps**: running apps by memory, with menu bar and background apps marked; click to open, right-click to quit.
 - **Shelf**: drop files on the notch to keep a copy (`open -a Tally <file>` from scripts and new screenshots can land there too), then drag them out, AirDrop or open them; items are removed when their retention runs out (files 1 day, screenshots 30 minutes by default; adjustable in Settings).
 
+<p align="center"><img src="docs/images/shelf.png" width="600" alt="Shelf page: files and screenshots dropped on the notch"></p>
+
 Hover-to-expand, shortcuts, the shelf, sounds, quota alerts and each usage provider can be switched off individually in Settings; "hide the panel over full-screen apps" and "add new screenshots to the shelf" are off by default.
 
-## Support
+## Menu bar dinosaur
 
-| Agent | Session status | Jump to terminal | Resume |
-|---|---|---|---|
-| Claude Code | ✓ | ✓ | `claude --resume` |
-| Codex | ✓ | ✓ | `codex resume` |
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/stride-dark.png">
+    <img src="docs/images/stride-light.png" width="560" alt="The menu bar dinosaur sleeping, running, sprinting and angry, with an egg showing memory use">
+  </picture>
+  <br><sub>Sleeping · running · sprinting (egg orange past 70%) · angry (egg red and cracked past 85%)</sub>
+</p>
 
-| Terminal | Clicking a session |
-|---|---|
-| Ghostty, Terminal.app, iTerm2 | Selects the session's tab |
-| tmux | Switches to the pane; selects the tab too when the outer terminal is Terminal.app / iTerm2, otherwise brings it forward |
-| VS Code, Cursor | Opens the session's project window |
-| Warp, kitty, WezTerm | Only activates the app (no stable scripting interface) |
-
-Other terminals show a "window not found" message. Resume opens a new window in the session's original terminal (Ghostty, Terminal.app, iTerm2; a new tmux window under tmux); anything else uses Ghostty if installed, otherwise Terminal.app.
-
-| Usage | Quota | Spend / balance |
-|---|---|---|
-| Claude | 5-hour, 7-day, per-model weekly (with pace line) | Today / week spend |
-| Codex | 5-hour, 7-day (with pace line) | Today / week spend |
-| Cursor | "Cursor models" and "other models" pools | — |
-| Antigravity | Gemini and Claude pools | — |
-| DeepSeek | — | Balance |
-| Kimi | Kimi Code membership 5-hour, 7-day (with pace line) | Open platform balance |
-| Zhipu GLM Coding Plan | 5-hour, 7-day (with pace line) | — |
-| New API relay | — | Balance |
-
-The last four are off by default; turn them on in Settings → 用量 (Usage). Keys are picked up from Claude Code settings, Kimi Code, zcode or opencode when present, otherwise enter them by hand. Zhipu's quota endpoint is undocumented and may break.
-
-## Requirements
-
-- macOS 15 or later
-- Apple Silicon
-- A MacBook with a notch (14"/16" MacBook Pro from 2021, MacBook Air M2 and later). Tally launches on other Macs, but the panel never appears (alerts come as system notifications)
-- Interface in Simplified Chinese
+Turn it on in Settings → 面板 (Panel); off by default. The dinosaur sleeps, runs and sprints with CPU load, and sprints or gets angry when memory runs tight; the egg in its nest fills up with memory use, turning orange at 70% and red and cracked at 85%. Click it to open the System page.
 
 ## Install
 
-**Homebrew** (no quarantine step needed):
+**Homebrew** (recommended, no quarantine step needed):
 
 ```bash
 brew install --cask aiden-guokuaile/tally/tally
@@ -95,6 +91,8 @@ brew install --cask aiden-guokuaile/tally/tally
 
 Always launch it from Applications. When run straight from the DMG or Downloads, macOS moves the app to a temporary location and Settings refuses to register hooks (that path disappears after a restart).
 
+**Requirements**: macOS 15 or later, Apple Silicon, a MacBook with a notch (14"/16" MacBook Pro from 2021, MacBook Air M2 and later); interface in Simplified Chinese. Tally launches on other Macs, but the panel never appears (alerts come as system notifications).
+
 ## Connect Claude Code and Codex
 
 Open Settings (gear icon on the panel, or ⌘, while expanded) → "hook" → click "安装" (Install) for each side.
@@ -103,6 +101,40 @@ Open Settings (gear icon on the panel, or ⌘, while expanded) → "hook" → cl
 - The Codex side needs the `codex` command to be available on this Mac.
 - Sessions that were already open must be restarted; Codex reads hooks only at startup.
 - Each side then shows when its hook last received an event. If it never does, "自检" (self-check) tells you whether the hook itself fails or the agent is not calling it.
+
+## Support
+
+| Agent | Session status | Jump to terminal | Resume |
+|---|---|---|---|
+| Claude Code | ✓ | ✓ | `claude --resume` |
+| Codex | ✓ | ✓ | `codex resume` |
+
+| Usage | Quota | Spend / balance |
+|---|---|---|
+| Claude | 5-hour, 7-day, per-model weekly (with pace line) | Today / week spend |
+| Codex | 5-hour, 7-day (with pace line) | Today / week spend |
+| Cursor | "Cursor models" and "other models" pools | — |
+| Antigravity | Gemini and Claude pools | — |
+| DeepSeek | — | Balance |
+| Kimi | Kimi Code membership 5-hour, 7-day (with pace line) | Open platform balance |
+| Zhipu GLM Coding Plan | 5-hour, 7-day (with pace line) | — |
+| New API relay | — | Balance |
+
+The last four are off by default; turn them on in Settings → 用量 (Usage). Keys are picked up from Claude Code settings, Kimi Code, zcode or opencode when present, otherwise enter them by hand. Zhipu's quota endpoint is undocumented and may break.
+
+<details>
+<summary><b>Which terminals a session row can jump to</b></summary>
+
+| Terminal | Clicking a session |
+|---|---|
+| Ghostty, Terminal.app, iTerm2 | Selects the session's tab |
+| tmux | Switches to the pane; selects the tab too when the outer terminal is Terminal.app / iTerm2, otherwise brings it forward |
+| VS Code, Cursor | Opens the session's project window |
+| Warp, kitty, WezTerm | Only activates the app (no stable scripting interface) |
+
+Other terminals show a "window not found" message. Resume opens a new window in the session's original terminal (Ghostty, Terminal.app, iTerm2; a new tmux window under tmux); anything else uses Ghostty if installed, otherwise Terminal.app.
+
+</details>
 
 ## Shortcuts
 
@@ -129,16 +161,6 @@ Open Settings (gear icon on the panel, or ⌘, while expanded) → "hook" → cl
 
 **Data**: sessions, usage statistics and settings stay on your Mac. No telemetry, no auto-update. Outbound traffic is limited to two things: quota and balance lookups against each provider's official endpoints (Anthropic, OpenAI (ChatGPT), Cursor, Google (Antigravity), plus DeepSeek, Kimi / Moonshot, Zhipu / Z.ai and your New API site only when turned on; turn a provider off in Settings to stop contacting it; keys you enter stay in `~/Library/Application Support/Tally/providers.json`, readable only by you), and a daily check of GitHub for a new version (can be turned off in Settings → 通用; it only notifies and never downloads or replaces anything).
 
-## How it works
-
-```
-Claude Code / Codex ──hook──▶ tally-hook ──▶ ~/Library/Application Support/Tally/sessions/<id>.json ──▶ notch panel
-                                                                                            ▲
-                        transcripts and Claude Code's own session status (interrupts and errors)
-```
-
-The hook writes only two local things — the session state file and a "last event received" record for the self-check — then exits immediately; it never blocks the agent. The panel watches the sessions directory, and for what hooks can't report (interrupts, errors) it reads transcripts and Claude Code's own status. Quotas come from local logs and the providers' APIs. Design docs (in Chinese) live in [docs/](docs/README.md).
-
 ## Troubleshooting
 
 - **The panel never appears**: it only shows on a built-in display with a notch, and hides when the lid is closed or only external displays are in use (alerts become system notifications). With "hide the panel over full-screen apps" on, it also stays away in full-screen apps.
@@ -159,18 +181,18 @@ The hook writes only two local things — the session state file and a "last eve
 
 Installed with Homebrew: do step 1, then replace steps 3–4 with `brew uninstall --zap --cask tally` (also removes the data directory and the login item).
 
-## Build from source
+<details>
+<summary><b>How it works</b></summary>
 
-Requires Xcode 16 or later (Swift 6 toolchain) and a code-signing certificate: Keychain Access → Certificate Assistant → Create a Certificate, named `Tally Dev`, identity type "Self Signed Root", certificate type "Code Signing". To use an existing certificate, `export TALLY_SIGN_IDENTITY="its name"`. A fixed signing identity keeps macOS Automation permissions valid across rebuilds.
-
-```bash
-git clone https://github.com/Aiden-Guokuaile/tally.git
-cd tally
-swift test
-./scripts/install.sh --build    # build, sign, install into /Applications and launch
+```
+Claude Code / Codex ──hook──▶ tally-hook ──▶ ~/Library/Application Support/Tally/sessions/<id>.json ──▶ notch panel
+                                                                                            ▲
+                        transcripts and Claude Code's own session status (interrupts and errors)
 ```
 
-Conventions, layout and debugging tips are in [CONTRIBUTING.md](CONTRIBUTING.md) (Chinese).
+The hook writes only two local things — the session state file and a "last event received" record for the self-check — then exits immediately; it never blocks the agent. The panel watches the sessions directory, and for what hooks can't report (interrupts, errors) it reads transcripts and Claude Code's own status. Quotas come from local logs and the providers' APIs. Design docs (in Chinese) live in [docs/](docs/README.md); contribution notes are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+</details>
 
 ## Acknowledgements
 
@@ -182,3 +204,7 @@ Conventions, layout and debugging tips are in [CONTRIBUTING.md](CONTRIBUTING.md)
 ## License
 
 [GPL-3.0](LICENSE). Claude, OpenAI, Codex, Cursor and Antigravity names and logos belong to their owners and are used only to label whose sessions and usage are shown. Tally is a personal project, not affiliated with Anthropic, OpenAI, Anysphere or Google.
+
+---
+
+<p align="center">If Tally saves you some window-switching, a ⭐ star helps other people running a pile of agents find it.</p>

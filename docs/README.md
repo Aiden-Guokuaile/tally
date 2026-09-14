@@ -26,4 +26,5 @@
 - `swift test` 全绿是每次改完的门槛；真机相关的用例（网卡、Wi-Fi、菜单栏 app）在环境不满足时 `XCTSkip`，不算失败。
 - 截图坐标按 14 寸内建屏（1512 × 982pt）算：面板居中、宽 620，`screencapture -R256,0,1000,480 -x <文件>` 能包住展开态；别的机器改 x 与宽即可。
 - `open -a Tally --args --open <page>` 让面板启动即展开到那页且不自动收起；`pkill -x Tally` 之后要等 `pgrep -x Tally` 查不到再 `open`，否则参数被没退干净的旧实例吞掉。
+- 录 README 截图和 GIF 加 `--demo`（可再带 `--open <page>`）：每一页换成假数据、设置只在内存里，见 [panel.md](panel.md)「演示模式」。
 - hook 与会话文件的验证用 `TALLY_SESSIONS_DIR` 指到临时目录，不碰真实目录。

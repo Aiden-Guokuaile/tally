@@ -54,17 +54,20 @@ final class KeepAwake {
     func start(until deadline: Date?, keepDisplay: Bool, minutes preset: Int? = nil) {
         stop(persist: false)
         keepsDisplay = keepDisplay
-        let result = IOPMAssertionCreateWithName(
-            (keepDisplay ? kIOPMAssertionTypePreventUserIdleDisplaySleep : kIOPMAssertionTypePreventUserIdleSystemSleep) as CFString,
-            IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            // ASCII 名字：中文名在 pmset 里显示成空串，`pmset -g assertions | grep -i tally` 就查不到自己那条
-            "Tally keep awake" as CFString,
-            &assertion
-        )
-        guard result == kIOReturnSuccess else {
-            Log.error("电源断言创建失败: \(result)")
-            persist()
-            return
+        // 演示模式只翻界面状态、不建断言：录屏时点一下杯子不该让这台机器真的不睡
+        if !DemoMode.isOn {
+            let result = IOPMAssertionCreateWithName(
+                (keepDisplay ? kIOPMAssertionTypePreventUserIdleDisplaySleep : kIOPMAssertionTypePreventUserIdleSystemSleep) as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                // ASCII 名字：中文名在 pmset 里显示成空串，`pmset -g assertions | grep -i tally` 就查不到自己那条
+                "Tally keep awake" as CFString,
+                &assertion
+            )
+            guard result == kIOReturnSuccess else {
+                Log.error("电源断言创建失败: \(result)")
+                persist()
+                return
+            }
         }
         isActive = true
         until = deadline
@@ -124,7 +127,7 @@ final class KeepAwake {
     private func stop(persist shouldPersist: Bool) {
         timer?.invalidate()
         timer = nil
-        if isActive {
+        if isActive, !DemoMode.isOn {
             IOPMAssertionRelease(assertion)
             assertion = 0
         }

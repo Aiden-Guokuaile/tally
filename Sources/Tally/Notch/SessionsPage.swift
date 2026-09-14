@@ -186,6 +186,8 @@ final class SessionJump {
     }
 
     private static func attempt(_ session: SessionRecord) async -> String? {
+        // 演示模式的会话没有终端：跳过去会把别的真窗口叫到前台，接着聊会开新终端；当作跳成了，行里不出红字
+        guard !DemoMode.isOn else { return nil }
         do {
             if session.state == .ended {
                 try await SessionResume.run(session)

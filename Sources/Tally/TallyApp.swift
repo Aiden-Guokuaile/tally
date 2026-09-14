@@ -28,6 +28,7 @@ struct TallyApp: App {
 ///
 /// `--open <page>`：`ai` / `network` / `system` / `apps` / `shelf` 让面板启动即展开到那页且不自动收起（截图验证用，不写 lastPage）；`settings` 打开设置窗口。
 /// `sessions` / `usage` 是旧名字，都算 `ai`。`--install-hooks`：不开面板，同步给两侧装 hook，结果打到 stdout 后退出。
+/// `--demo`：每一页换成编出来的数据，录 README 截图用，可和 `--open` 一起用（`DemoMode`，docs/panel.md「演示模式」）。
 struct LaunchOptions: Equatable {
     enum Page: String, CaseIterable {
         case ai
@@ -83,6 +84,7 @@ struct LaunchOptions: Equatable {
 
     var openPage: Page?
     var installHooks = false
+    var demo = false
 
     static func parse(_ arguments: [String]) -> LaunchOptions {
         var options = LaunchOptions()
@@ -92,6 +94,8 @@ struct LaunchOptions: Equatable {
                 options.openPage = Page(argument: value)
             } else if argument == "--install-hooks" {
                 options.installHooks = true
+            } else if argument == "--demo" {
+                options.demo = true
             }
         }
         return options
@@ -107,8 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let options = LaunchOptions.parse(CommandLine.arguments)
-        Log.debug("启动，openPage=\(options.openPage?.rawValue ?? "nil")")
-        if options.installHooks {
+        Log.debug("启动，openPage=\(options.openPage?.rawValue ?? "nil") demo=\(options.demo)")
+        // 演示模式不装 hook：那会改真的 ~/.claude 与 ~/.codex 配置
+        if options.installHooks, !options.demo {
             for line in HookInstallModel.shared.installAllBlocking() {
                 print(line)
             }
@@ -116,10 +121,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         SessionStore.shared.start()
         UsageStore.shared.start()
-        // 断言随上一个进程死了，按落盘的状态接回来
-        KeepAwake.shared.restore()
-        // 上一轮要是被强杀，系统里还留着「合盖不休眠」；有免密规则就直接抹掉，没有就交给界面提示
-        LidSleepBlocker.shared.checkResidue()
+        // 演示模式的设置只在内存里，没有要接回的状态；查残留要跑 sudo 和 pmset，也不该碰
+        if !options.demo {
+            // 断言随上一个进程死了，按落盘的状态接回来
+            KeepAwake.shared.restore()
+            // 上一轮要是被强杀，系统里还留着「合盖不休眠」；有免密规则就直接抹掉，没有就交给界面提示
+            LidSleepBlocker.shared.checkResidue()
+        }
         let panelPage = options.openPage.flatMap { LaunchOptions.Page.panelPages.contains($0) ? $0 : nil }
         // 面板浮在所有窗口之上，不先收起来会盖住设置窗口的上半截；所有打开设置的入口都经过 show()
         SettingsWindowController.shared.willShow = { [weak self] in self?.notch?.close() }

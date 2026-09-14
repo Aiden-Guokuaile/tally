@@ -32,8 +32,8 @@ struct NotchView: View {
             // 闭合态什么都不画：刘海正下方是摄像头外壳，没有像素，画了也看不见（截图却拍得到）
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // 文件拖放挂在根上：闭合态拖到刘海就展开到文件架，展开态落到任何一页都收；开关关了不注册
-        .onDrop(of: preferences.prefs.shelfEnabled ? ShelfDrop.types : [], isTargeted: $dropTargeted) { ShelfDrop.handle($0) }
+        // 文件拖放挂在根上：闭合态拖到刘海就展开到文件架，展开态落到任何一页都收；开关关了、演示模式都不注册
+        .onDrop(of: preferences.prefs.shelfEnabled && !DemoMode.isOn ? ShelfDrop.types : [], isTargeted: $dropTargeted) { ShelfDrop.handle($0) }
         .onChange(of: dropTargeted) { _, targeted in
             if targeted { state.dropEntered?() }
         }

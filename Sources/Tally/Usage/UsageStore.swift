@@ -7,7 +7,8 @@ import Observation
 @Observable
 final class UsageStore {
 
-    static let shared = UsageStore()
+    /// 演示模式换成编好的提供方：真的那几家一建出来就读扫描缓存和退避文件，刷新时还要读日志、凭据、调接口。
+    static let shared = DemoMode.isOn ? UsageStore(providers: DemoData.usageProviders) : UsageStore()
 
     enum Reason {
         case panelOpened, timer, manual

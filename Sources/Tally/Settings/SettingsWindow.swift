@@ -34,6 +34,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     var willShow: (() -> Void)?
 
     func show() {
+        // 演示模式不开：里面是真的 hook 心跳、凭据状态和路径
+        guard !DemoMode.isOn else { return }
         willShow?()
         NSApp.setActivationPolicy(.regular)
         window?.makeKeyAndOrderFront(nil)

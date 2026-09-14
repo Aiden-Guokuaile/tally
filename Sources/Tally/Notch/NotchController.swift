@@ -345,6 +345,20 @@ final class NotchController {
             let last = LaunchOptions.Page(rawValue: PreferencesStore.shared.prefs.lastPage) ?? .ai
             state.page = last == .shelf && !PreferencesStore.shared.prefs.shelfEnabled ? .ai : last
         }
+        if DemoMode.isOn { scheduleDemoPeeks() }
+    }
+
+    /// 演示模式：会话目录不盯，不会有真提示；按固定时刻垂两条，录 GIF 时照着时间点拍。
+    /// 不走 `sessionAlerted`：它要跑 AppleScript 问终端前台，还会响提示音。面板展开着或全屏藏着时 showPeek 自己会跳过。
+    private func scheduleDemoPeeks() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            if let record = SessionStore.shared.sessions.first(where: { $0.sessionId == DemoData.peekSessionId }) {
+                self?.showPeek(.session(record))
+            }
+            try? await Task.sleep(for: .seconds(8))
+            self?.showPeek(.quota(DemoData.quotaPeekEvent(now: Date())))
+        }
     }
 
     // MARK: 功能开关
@@ -580,6 +594,8 @@ final class NotchController {
 
     /// `open -a Tally <文件>`：照拖进来一样复制进文件架，闭合态弹一下说放了什么。
     func receiveFiles(_ urls: [URL], kind: ShelfKind = .file) {
+        // 演示模式不收也不弹「放进文件架」：文件架是编的，说放进去了却看不到
+        guard !DemoMode.isOn else { return }
         let enabled = PreferencesStore.shared.prefs.shelfEnabled
         showPeek(.shelf(names: urls.map(\.lastPathComponent), enabled: enabled))
         guard enabled else { return }
@@ -617,7 +633,8 @@ final class NotchController {
         } else {
             applyFrame(animated: true)
         }
-        guard plan.focusTerminal, let session else { return }
+        // 演示模式的会话没有终端，跳过去只会把别的真窗口叫到前台
+        guard plan.focusTerminal, let session, !DemoMode.isOn else { return }
         // 脚本在后台跑，提示条不等它（第一次跳会弹自动化授权框）
         Task {
             do {

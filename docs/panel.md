@@ -46,7 +46,31 @@
 - 展开态挂 `NSEvent.addGlobalMonitorForEvents(.leftMouseDown)`：点面板外立即收起。
 - 钉住态（`--open`、⌥⇧T）不因鼠标离开或点外收起，再点一次刘海才收：只认点在刘海那段——顶部 `notchHeight` 高、横向在标题行给物理刘海留的空位（`headerGap`）里，`NotchGeometry.hitsNotch` 判；点页签、按钮、页内容都不收。`NotchHostView.mouseDown` 对面板里每一次左键都会调（SwiftUI 的按钮也先经过它），不按位置判的话钉住后点任何页签面板都会收起。`open()` 对已展开的面板是空操作，连 `isPinned` 都不碰：悬停定时器晚 150 ms 才到，不能把刚钉住的改回不钉。
 - 闭合态右键刘海出 Tally 菜单（设置… / 刷新用量 / 退出）；展开态右键交给 SwiftUI，页面里的右键菜单（应用页的「退出」）才弹得出来。
-- 启动参数 `--open ai|network|system|apps|shelf` 展开到那页并钉住（截图用，不写 `lastPage`）；`--open settings` 开设置窗口；`--install-hooks` 不开面板，同步装两侧 hook，结果打到 stdout 后退出。
+- 启动参数 `--open ai|network|system|apps|shelf` 展开到那页并钉住（截图用，不写 `lastPage`）；`--open settings` 开设置窗口；`--install-hooks` 不开面板，同步装两侧 hook，结果打到 stdout 后退出；`--demo` 每一页换成假数据（见「演示模式」），可和 `--open` 一起用。
+
+## 演示模式
+
+`--demo`（`DemoMode.isOn`，和别的启动参数同一套 `LaunchOptions.parse`，进程里只算一次）：给 README 截图和 GIF 用，每一页都换成编出来的数据，真会话、项目目录、花费、IP、在跑的 app、文件一样都不露。假数据全在 `Sources/Tally/Demo/DemoData.swift`；各 store 在 `shared` 或 `start()` 里认它，读写真数据的路一律不走。
+
+- **设置只在内存里**（`PreferencesStore(inMemory:)`）：不读也不写 `preferences.json`，录屏时拨的开关退出就没了。在默认值上改几项：截屏时不隐藏面板（开着截出来是空的）、不查新版本、不弹电池提示、不自动收新截图、没有刘海屏时不发系统通知（会去要授权）、文件架开、菜单栏小恐龙开（它只读整机 CPU 和内存，是真数据，和系统页的假内存对不上，接受）、不画摄像头 / 麦克风占用点（那是真设备状态）、多开 DeepSeek、启动页 AI。
+- **AI 页**：七个会话——等审批「给订单列表加分页」、等输入「迁移 CI 到 GitHub Actions」、在跑两个、跑完一个、已关闭两个；目录在 `/Users/demo/code/` 下，pid 从 999999 起（macOS 的 pid 到不了），没关闭的都在两小时内动过、不画成失联。`SessionStore` 的两个目录指到不存在的临时路径，`start()` 直接赋值：不碰会话目录，也不碰 `ClaudeHome`（它要问登录 shell、读心跳文件）。用量换成 `DemoUsageProvider`：Claude（Max，今日 $12.40 · 1.8M，本周 $86.10，5 小时 42%、7 天 61% 配速线橙、Fable 周窗口 23%）、Codex（Pro，5 小时 18%、7 天 35%，今日 $4.20）、DeepSeek（余额 ¥128.50）；会话条数和用量家数刚好让 AI 页放进面板最高高度（屏高六成），再多一行底部就被裁；数字固定，重置时刻按每轮刷新的 `now` 往后算，配额条不会过期消失。不扫日志、不读扫描缓存与 429 退避文件、不碰钥匙串和凭据文件、不调接口。
+- **网络页**：Wi-Fi en0 −48 dBm，本机 192.0.2.24、网关 192.0.2.1（文档专用段 192.0.2.0/24），DNS 1.1.1.1、8.8.8.8；速率每秒按几条正弦叠出一个点（下行 1–6 MB/s、上行 100–600 KB/s），定时器挂在 `rateTimer` 上照常随收起停，每次开页先补满 60 秒曲线；代理卡片是在跑的 Clash Verge（pid 与 bundleURL 都不存在，只画名字、没有图标）、四个组。刷新按钮不动：重拉会换上真网卡。
+- **系统页**：Apple M4 Pro（10 性能 + 4 能效）48 GB、CPU 23%、内存 58% 正常、电池 87% 放电 · 最大容量 96%、内存大户 Xcode / Safari / Claude、废纸篓 12 项 1.3 GB；不起采样定时器，刷新按钮跟着不动。
+- **应用页**：七个系统自带 app（Safari、邮件、音乐、备忘录、日历、预览、终端），图标按 `/System/Applications` 与 `/Applications/Safari.app` 取，内存是编的；不起定时器。
+- **文件架**：四件（设计稿-首页.png、接口文档.pdf、一张截图、发布清单.md）；目录指到不会被建出来的临时路径、保留时长拉满（录着录着不会被清掉），`start()` 按扩展名给系统类型图标当缩略图。
+- **提示条**：会话目录不盯，不会有真提示；启动后第 4 秒垂「修复支付回调重复入账」跑完，第 12 秒垂「Claude · 5 小时」配额 82%，各留 5 秒（这个 82% 和 AI 页的 42% 对不上，别拍进同一个镜头）。面板展开着、全屏藏着就不垂，错过了要重启 app。不走 `sessionAlerted`（它跑 AppleScript 问终端前台、响提示音）。
+
+挡掉的动作，点了没反应：跳回终端与接着聊（会话行、⌘1–⌘9、提示条、系统通知都经过 `SessionJump` 或 `peekTapped`）；设置窗口（`SettingsWindowController.show()` 直接返回——里面是真的 hook 心跳、凭据状态和路径）；清空废纸篓（确认框照弹，确认后不删）；应用页打开、在访达中显示、退出；文件架放进来（拖放不注册、`open -a Tally <文件>` 不收不弹）、删除、清空、移动到；`--install-hooks`。保持唤醒只翻界面状态、不建电源断言；合盖也不休眠只亮开关，不装免密规则、不跑 `sudo` / `pmset`；启动时不接回保持唤醒、不查合盖残留。
+
+录法（用户在用的是 `/Applications/Tally.app`，先退掉它）：
+
+```bash
+pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
+open -a Tally --args --demo                   # GIF：悬停展开、第 4 / 12 秒的提示条
+open -a Tally --args --demo --open network    # 静态截图：钉住展开到那页，ai / system / apps / shelf 同理
+```
+
+录完同样先 `pkill -x Tally` 等退干净，再 `open -a Tally` 回到真数据。
 
 ## 闭合态内容
 
@@ -130,12 +154,12 @@ swiftc Resources/icons/make-icon.swift -o /tmp/make-icon && /tmp/make-icon Resou
 ## 验证
 
 ```bash
-swift test --filter 'NotchGeometryTests|SwipeTests|PreferencesTests|NotchPanelTests|PeekTests|SubprocessTests'
+swift test --filter 'NotchGeometryTests|SwipeTests|PreferencesTests|NotchPanelTests|PeekTests|SubprocessTests|DemoModeTests'
 ./scripts/install.sh --build && sleep 3 && screencapture -R256,0,1000,60 -x /tmp/tally-closed.png
 pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done; open -a Tally --args --open ai && sleep 4 && screencapture -R256,0,1000,480 -x /tmp/tally-open.png
 ```
 
-用例：闭合尺寸 1512 / 663 / 664 / 32 → 189 × 32、无刘海返回 nil、钉住点击只认刘海那段（刘海中央算、页签位置不算、刘海下方不算）、`openHeight` 三段夹紧、提示态宽随内容夹在刘海宽与上限之间、翻页阈值与方向、缩小宽限三态与屏幕顶边那一行算在面板里、页摘要文案、`lastPage` 非法值回落、面板按键（1–9 切页签只在开关开着且没按修饰键时、⌘1–⌘9 与 ⌘0（第 10 个）只在开关开着时、单按 0 不归面板、行尾编号第 10 个是 ⌘0、⌘, 恒有、别的组合不管）；配额提示条（三种事件的样式、颜色、不可点、停留跟会话走）；提示排队（电池不顶掉等输入、等你顶掉跑完、一样高排队、两个会话都在等审批时后来的排队、同一会话的新状态直接换、队里留高的）；提示音 2 秒内只响一声；文件架提示条（单个文件名、多个计数、关着时的文案、停留跟电池走）；全屏判定（系统全屏算、最大化不算、带子上的窗口得是同一个 app 的、自己的窗口不算、外接屏上全屏不藏内建屏、分屏半边不算）；没有刘海屏时只有电池提示不发通知。前台判定要真的前台 app 和 AppleScript，单测覆盖不到：在 Ghostty 里盯着一个会话的标签等它跑完一个回合——不响不弹；切到别的 app 再跑一轮——响 Glass、垂提示条。截图：闭合态刘海两侧无边框；展开态居中、页签胶囊。手动：悬停展开、点外收起、⌥⇧T 展开再收起、展开时 ⌘, 开设置、两指横滑翻页；另外三条只能看实物、用真键盘验：
+用例：闭合尺寸 1512 / 663 / 664 / 32 → 189 × 32、无刘海返回 nil、钉住点击只认刘海那段（刘海中央算、页签位置不算、刘海下方不算）、`openHeight` 三段夹紧、提示态宽随内容夹在刘海宽与上限之间、翻页阈值与方向、缩小宽限三态与屏幕顶边那一行算在面板里、页摘要文案、`lastPage` 非法值回落、面板按键（1–9 切页签只在开关开着且没按修饰键时、⌘1–⌘9 与 ⌘0（第 10 个）只在开关开着时、单按 0 不归面板、行尾编号第 10 个是 ⌘0、⌘, 恒有、别的组合不管）；配额提示条（三种事件的样式、颜色、不可点、停留跟会话走）；提示排队（电池不顶掉等输入、等你顶掉跑完、一样高排队、两个会话都在等审批时后来的排队、同一会话的新状态直接换、队里留高的）；提示音 2 秒内只响一声；文件架提示条（单个文件名、多个计数、关着时的文案、停留跟电池走）；全屏判定（系统全屏算、最大化不算、带子上的窗口得是同一个 app 的、自己的窗口不算、外接屏上全屏不藏内建屏、分屏半边不算）；没有刘海屏时只有电池提示不发通知；演示模式（`--demo` 能和 `--open` 一起解析、测试进程里恒为假、会话覆盖四组且没关闭的不失联、假数据里除 `/Users/demo` 没有别的家目录、地址在 192.0.2.0/24、配额重置时刻都在未来）。前台判定要真的前台 app 和 AppleScript，单测覆盖不到：在 Ghostty 里盯着一个会话的标签等它跑完一个回合——不响不弹；切到别的 app 再跑一轮——响 Glass、垂提示条。截图：闭合态刘海两侧无边框；展开态居中、页签胶囊。手动：悬停展开、点外收起、⌥⇧T 展开再收起、展开时 ⌘, 开设置、两指横滑翻页；另外三条只能看实物、用真键盘验：
 
 1. 展开面板按 2：切到网络页；按 ⌘1：跳到第一个会话的终端，面板照旧开着、鼠标移出才收，接着打字进的是那个终端；面板收起时按数字照常打进原来的 app。
 2. 在任意 app 里打字，光标停到刘海等它展开，再移开继续打：字照常进原来的 app。

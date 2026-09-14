@@ -9,7 +9,11 @@ import Observation
 @Observable
 final class SessionStore {
 
-    static let shared = SessionStore()
+    /// 演示模式把两个目录都指到不存在的临时路径：默认参数里的 `ClaudeHome` 要问登录 shell、读心跳文件。
+    static let shared = DemoMode.isOn
+        ? SessionStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("tally-demo-sessions"),
+                       claudeSessions: FileManager.default.temporaryDirectory.appendingPathComponent("tally-demo-sessions"))
+        : SessionStore()
 
     /// 按 updated_at 倒序。
     private(set) var sessions: [SessionRecord] = []
@@ -46,6 +50,11 @@ final class SessionStore {
     // MARK: 启动
 
     func start() {
+        // 演示模式：会话是编的；不建目录、不读、不盯、不清孤儿、不回写，也就不会冒出状态变化的提示
+        if DemoMode.isOn {
+            sessions = DemoData.sessions(now: Date()).sorted { $0.updatedAt > $1.updatedAt }
+            return
+        }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         cleanupOrphans(now: Date())
         reload()

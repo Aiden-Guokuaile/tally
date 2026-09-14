@@ -1,78 +1,74 @@
 <div align="center">
 
+<img src="docs/images/icon.png" width="112" alt="Tally 图标">
+
 # Tally
 
-**把 Claude Code / Codex 的会话状态和 AI 配额放进 MacBook 刘海：谁在等你、谁跑完了、额度还剩多少，鼠标一停就知道。**
+**把 Claude Code / Codex 的会话状态和 AI 配额放进 MacBook 刘海**<br>
+谁在等你、谁跑完了、额度还剩多少，鼠标一停就知道。
 
 简体中文 | [English](README.en.md)
 
-![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
+<a href="https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg"><img src="docs/images/download-zh.svg" width="240" alt="下载 Tally（macOS 版）"></a>
 
-**[⬇ 下载 Tally.dmg](https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg)**
+或者用 Homebrew 装（免放行）：`brew install --cask aiden-guokuaile/tally/tally`
+
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
+
+<img src="docs/images/hero.gif" width="820" alt="会话跑完时刘海垂下提示，鼠标停上去展开面板，在 AI、网络、系统几页之间切换">
 
 </div>
 
 同时开着几个 agent 会话，得不停切窗口看谁在等审批、谁跑完了；配额快见底了也不知道。Tally 把这些收进刘海：平时和刘海融为一体，有事才往下垂一条提示；鼠标停上去就展开成一整块面板。
 
-## 亮点
+## 为什么用 Tally
 
-- **所有会话一眼看清**：Claude Code 和 Codex 的会话按「等你 / 在跑 / 最近」分组，等审批、等输入、压缩上下文、跑完了分得清清楚楚。
-- **状态判得准**：按 Esc 打断、API 报错、主回合结束后子 agent 还在后台跑——这些 hook 不报的情况也判得对，不会一直挂着「忙」。
-- **一下回到终端**：点一行（或 ⌘1–⌘9、⌘0）直接跳到那个会话所在的终端标签，tmux 里的 pane 也行；关掉的会话在会话卡片的「已关闭」那一页，点「接着聊」开个新窗口接着聊。
-- **各家配额摆一排**：Claude、Codex、Cursor、Antigravity，加上 DeepSeek、Kimi、智谱 GLM、New API 中转站（默认关，打开才查）；Claude 和 Codex 还有今日 / 本周花费和配速线，照这个速度会不会在重置前用完一眼能看出。配额过 80%、用完会提醒，提醒过的窗口重置了也说一声。
-- **读凭据不打扰**：只读各家登录留下的 token，不刷新、不往钥匙串写，平时不弹授权框。
-- **顺手的小面板**：网速与代理、内存与电池、在跑的 app、文件架（拖到刘海、`open -a Tally <文件>`、新截图自动放进来）、保持唤醒（含合盖不休眠），还有一只可选的菜单栏小恐龙：跟着 CPU 睡觉、跑步、冲刺，内存吃紧就冲刺、生气，身边一颗蛋显示内存用了多少。
-- **本地、零依赖**：SwiftUI + AppKit 原生实现，没有第三方依赖，没有统计上报。界面目前只有简体中文。
+- **谁在等你，一眼看清**：Claude Code 和 Codex 的会话按「等你 / 在跑 / 最近」分组；等审批、等输入、跑完了，刘海垂一条提示并响一声。
+- **状态判得准**：按 Esc 打断、API 报错、主回合结束后子 agent 还在后台跑，这些 hook 不报的情况也判得对，不会一直挂着「忙」。
+- **一下回到那个终端**：点一行（或 ⌘1–⌘9、⌘0）直接跳到会话所在的终端标签，tmux 的 pane 也行；关掉的会话点「接着聊」开个新窗口接着聊。
+- **各家额度摆一排**：Claude、Codex、Cursor、Antigravity，加上 DeepSeek、Kimi、智谱 GLM、New API 中转站；Claude 和 Codex 还有今日 / 本周花费和配速线，照这个速度会不会在重置前用完一眼能看出，过 80% 和用完都会提醒。
+- **本地、原生、零依赖**：SwiftUI + AppKit，只读各家登录留下的 token（不刷新、不往钥匙串写），没有统计上报。
+
+顺手还带着：网速与代理、内存与电池、在跑的 app、文件架、保持唤醒（含合盖不休眠），和一只可选的菜单栏小恐龙。
 
 ## 五个页面
 
-- **AI**：会话列表 + 各家用量条。会话行带提供方标志和模型名（如 Opus 5、gpt-6-astra）。会话跑完或在等你时，刘海垂一条提示并响一声；面板开着时不提示，会话所在的 Ghostty / Terminal.app / iTerm2 标签正在前台时也不打扰；合盖只剩外接屏时改发系统通知。
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/ai.png" alt="AI 页：会话列表与各家用量"><br><b>AI</b>：会话列表 + 各家用量条</td>
+    <td width="50%"><img src="docs/images/network.png" alt="网络页：吞吐、Wi-Fi、IP 与代理"><br><b>网络</b>：吞吐、Wi-Fi、IP、代理</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/system.png" alt="系统页：CPU、内存、电池与废纸篓"><br><b>系统</b>：CPU、内存、电池、废纸篓</td>
+    <td width="50%"><img src="docs/images/apps.png" alt="应用页：在跑的 app 按内存排"><br><b>应用</b>：在跑的 app 按内存排</td>
+  </tr>
+</table>
+
+- **AI**：会话行带提供方标志和模型名。会话跑完或在等你时，刘海垂一条提示并响一声；面板开着时不提示，会话所在的 Ghostty / Terminal.app / iTerm2 标签正在前台时也不打扰；合盖只剩外接屏时改发系统通知。
 - **网络**：网卡吞吐（最近 60 秒折线）、Wi-Fi 信号、本机 IP、网关、DNS；开着系统代理或代理软件时多一张卡片，认出是哪个代理 app、端口、有没有 TUN（接了 mihomo 内核的控制接口时还显示模式）。
 - **系统**：芯片、内存、CPU、磁盘、开机时长，电池健康，内存大户前三，废纸篓大小与一键清空。
 - **应用**：在跑的 app 按内存排，Dock 里看不见的菜单栏工具和后台 app 带标记，点行打开，右键退出。
 - **文件架**：把文件拖到刘海上暂存一份副本（脚本里 `open -a Tally <文件>`、新截图也能自动放进来），之后拖出去、AirDrop 或打开；到了保留时间自动清掉（文件默认 1 天，截图默认 30 分钟，设置里可调）。
 
+<p align="center"><img src="docs/images/shelf.png" width="600" alt="文件架页：拖到刘海上的文件与截图"></p>
+
 悬停展开、快捷键、文件架、提示音、配额提醒、各家用量都能在设置里单独关掉；「全屏 app 时隐藏面板」「新截图自动放进文件架」默认关，要用在设置里打开。
 
-## 支持哪些
+## 菜单栏小恐龙
 
-| Agent | 会话状态 | 跳回终端 | 接着聊 |
-|---|---|---|---|
-| Claude Code | ✓ | ✓ | `claude --resume` |
-| Codex | ✓ | ✓ | `codex resume` |
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/stride-dark.png">
+    <img src="docs/images/stride-light.png" width="560" alt="菜单栏小恐龙的睡觉、跑步、冲刺、生气四个状态，旁边的蛋显示内存">
+  </picture>
+  <br><sub>睡觉 · 跑步 · 冲刺（蛋过 70% 变橙） · 生气（蛋过 85% 变红裂开）</sub>
+</p>
 
-| 终端 | 点会话行 |
-|---|---|
-| Ghostty、Terminal.app、iTerm2 | 切到那个会话所在的标签 |
-| tmux | 切到那个 pane；外层是 Terminal.app / iTerm2 时连标签一起切，别的终端带到前台 |
-| VS Code、Cursor | 打开会话所在的工程窗口 |
-| Warp、kitty、WezTerm | 只把 app 叫到前台（没有稳定的脚本接口） |
-
-表外的终端点了会提示找不到窗口。「接着聊」回到会话原来的终端开新窗口（Ghostty、Terminal.app、iTerm2；tmux 里开一个新的 tmux 窗口），其余情况装了 Ghostty 用 Ghostty，没装用 Terminal.app。
-
-| 用量 | 配额 | 花费 / 余额 |
-|---|---|---|
-| Claude | 5 小时、7 天、按模型的周窗口（带配速线） | 今日 / 本周花费 |
-| Codex | 5 小时、7 天（带配速线） | 今日 / 本周花费 |
-| Cursor | 「Cursor 模型」「其他模型」两个池 | — |
-| Antigravity | Gemini、Claude 两个池 | — |
-| DeepSeek | — | 余额 |
-| Kimi | Kimi Code 会员 5 小时、7 天（带配速线） | 开放平台余额 |
-| 智谱 GLM Coding Plan | 5 小时、7 天（带配速线） | — |
-| New API 中转站 | — | 余额 |
-
-后四家默认关，在设置「用量」里打开。key 先从 Claude Code 设置、Kimi Code、zcode、opencode 里自动找，找不到再手填；智谱的配额接口没有公开文档，改版可能失效。
-
-## 系统要求
-
-- macOS 15 及以上
-- Apple Silicon
-- 带刘海的 MacBook（2021 年起的 14 / 16 英寸 MacBook Pro、M2 及以后的 MacBook Air）。别的 Mac 能启动，但面板不会出现（提醒改发系统通知）
-- 界面为简体中文
+设置「面板」里打开（默认关）。恐龙跟着 CPU 睡觉、跑步、冲刺，内存吃紧就冲刺、生气；身边一颗窝里的蛋按内存已用填满，70% 变橙、85% 变红裂开。点它展开面板到「系统」页。
 
 ## 安装
 
-**Homebrew**（装完不用再放行）：
+**Homebrew**（推荐，装完不用再放行）：
 
 ```bash
 brew install --cask aiden-guokuaile/tally/tally
@@ -92,6 +88,8 @@ brew install --cask aiden-guokuaile/tally/tally
 
 一定从「应用程序」里打开。直接在 DMG 或下载文件夹里运行时，系统会把 app 挪到临时位置，这时设置里不让注册 hook（那个路径重启就失效）。
 
+**系统要求**：macOS 15 及以上、Apple Silicon、带刘海的 MacBook（2021 年起的 14 / 16 英寸 MacBook Pro、M2 及以后的 MacBook Air）；界面为简体中文。别的 Mac 能启动，但面板不会出现（提醒改发系统通知）。
+
 ## 接上 Claude Code 和 Codex
 
 打开设置（面板右上角齿轮，或展开时按 ⌘,）→「hook」→ 两边各点一次「安装」。
@@ -100,6 +98,40 @@ brew install --cask aiden-guokuaile/tally/tally
 - Codex 侧安装要用到本机的 `codex` 命令。
 - 装之前就开着的会话要重开一次才会挂上，Codex 只在启动时读 hook。
 - 装好后每一侧下面显示「最近收到事件」；一直显示「还没收到过」时点「自检」，能看出是 hook 本身跑不起来，还是 agent 没在调它。
+
+## 支持哪些
+
+| Agent | 会话状态 | 跳回终端 | 接着聊 |
+|---|---|---|---|
+| Claude Code | ✓ | ✓ | `claude --resume` |
+| Codex | ✓ | ✓ | `codex resume` |
+
+| 用量 | 配额 | 花费 / 余额 |
+|---|---|---|
+| Claude | 5 小时、7 天、按模型的周窗口（带配速线） | 今日 / 本周花费 |
+| Codex | 5 小时、7 天（带配速线） | 今日 / 本周花费 |
+| Cursor | 「Cursor 模型」「其他模型」两个池 | — |
+| Antigravity | Gemini、Claude 两个池 | — |
+| DeepSeek | — | 余额 |
+| Kimi | Kimi Code 会员 5 小时、7 天（带配速线） | 开放平台余额 |
+| 智谱 GLM Coding Plan | 5 小时、7 天（带配速线） | — |
+| New API 中转站 | — | 余额 |
+
+后四家默认关，在设置「用量」里打开。key 先从 Claude Code 设置、Kimi Code、zcode、opencode 里自动找，找不到再手填；智谱的配额接口没有公开文档，改版可能失效。
+
+<details>
+<summary><b>点会话行能跳到哪些终端</b></summary>
+
+| 终端 | 点会话行 |
+|---|---|
+| Ghostty、Terminal.app、iTerm2 | 切到那个会话所在的标签 |
+| tmux | 切到那个 pane；外层是 Terminal.app / iTerm2 时连标签一起切，别的终端带到前台 |
+| VS Code、Cursor | 打开会话所在的工程窗口 |
+| Warp、kitty、WezTerm | 只把 app 叫到前台（没有稳定的脚本接口） |
+
+表外的终端点了会提示找不到窗口。「接着聊」回到会话原来的终端开新窗口（Ghostty、Terminal.app、iTerm2；tmux 里开一个新的 tmux 窗口），其余情况装了 Ghostty 用 Ghostty，没装用 Terminal.app。
+
+</details>
 
 ## 快捷操作
 
@@ -126,16 +158,6 @@ brew install --cask aiden-guokuaile/tally/tally
 
 **数据**：会话、日志统计、设置都留在本机，没有统计上报，也没有自动更新。对外联网只有两件事：向各家官方接口查配额和余额（Anthropic、OpenAI（ChatGPT）、Cursor、Google（Antigravity），以及打开了才连的 DeepSeek、Kimi / Moonshot、智谱 / Z.ai 和你填的 New API 站点；不想连哪家就在设置「用量」里关掉）；手填的 key 只存在本机 `~/Library/Application Support/Tally/providers.json`（权限 600）；每天问一次 GitHub 有没有新版本（设置「通用」里可关，只提示，不自动下载替换）。
 
-## 工作原理
-
-```
-Claude Code / Codex ──hook──▶ tally-hook ──▶ ~/Library/Application Support/Tally/sessions/<id>.json ──▶ 刘海面板
-                                                                                            ▲
-                                        transcript、Claude Code 自己的会话状态（补判打断与报错）
-```
-
-hook 只往本地写两样东西：会话状态文件，和一份「最近收到的事件」（给自检用），写完立即退出，从不拦 agent。面板盯着会话目录更新；hook 报不出来的情况（打断、报错），再读 transcript 和 Claude Code 自己的状态补判。配额来自本地日志和各家接口。设计细节见 [docs/](docs/README.md)。
-
 ## 常见问题
 
 - **面板不出现**：只在带刘海的内建屏上显示；合盖或只用外接显示器时会隐藏（提醒改发系统通知）。开了「全屏 app 时隐藏面板」的话，全屏 app 里也不出现。
@@ -156,18 +178,18 @@ hook 只往本地写两样东西：会话状态文件，和一份「最近收到
 
 用 Homebrew 装的：第 1 步照做，第 3、4 步换成 `brew uninstall --zap --cask tally`（连数据目录和开机自启一起清）。
 
-## 从源码构建
+<details>
+<summary><b>工作原理</b></summary>
 
-需要 Xcode 16 及以上（Swift 6 工具链），以及一张代码签名证书：钥匙串访问 → 证书助理 → 创建证书，名称填 `Tally Dev`，身份类型「自签名根证书」，证书类型「代码签名」。已有别的证书可以 `export TALLY_SIGN_IDENTITY="证书名"`。固定签名身份是为了让「自动化」授权在重新编译后依然有效。
-
-```bash
-git clone https://github.com/Aiden-Guokuaile/tally.git
-cd tally
-swift test
-./scripts/install.sh --build    # 编译、签名、装进 /Applications 并启动
+```
+Claude Code / Codex ──hook──▶ tally-hook ──▶ ~/Library/Application Support/Tally/sessions/<id>.json ──▶ 刘海面板
+                                                                                            ▲
+                                        transcript、Claude Code 自己的会话状态（补判打断与报错）
 ```
 
-开发约定、目录结构和调试方法见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+hook 只往本地写两样东西：会话状态文件，和一份「最近收到的事件」（给自检用），写完立即退出，从不拦 agent。面板盯着会话目录更新；hook 报不出来的情况（打断、报错），再读 transcript 和 Claude Code 自己的状态补判。配额来自本地日志和各家接口。设计细节见 [docs/](docs/README.md)，参与开发见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+</details>
 
 ## 致谢
 
@@ -179,3 +201,7 @@ swift test
 ## 许可
 
 [GPL-3.0](LICENSE)。Claude、OpenAI、Codex、Cursor、Antigravity 的名称与标志归各自所有者，Tally 只用它们标明是哪家的会话与用量；Tally 是个人项目，与 Anthropic、OpenAI、Anysphere、Google 均无关联。
+
+---
+
+<p align="center">觉得 Tally 好用的话，点个 ⭐ Star，让更多同样开着一堆 agent 的人看到它。</p>

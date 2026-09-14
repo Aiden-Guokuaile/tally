@@ -5,12 +5,16 @@
 # macOS
 .DS_Store
 
-# .omc/ = Claude 侧、.omx/ = Codex 侧运行时状态，换台机器重新生成
+# AI 助手的项目说明与运行时状态，只留本地不入库（.omc/ = Claude 侧、.omx/ = Codex 侧）
+.claude/
 .omc/
 .omx/
-# .claude 下只忽略本地设置，项目约定与仓库级摩擦记录要入库
-.claude/*
-!.claude/CLAUDE.md
-!.claude/PAPERCUTS.md
+AGENTS.md
+
+# 构建、发版、生成图标与演示录屏的脚本，只留本地不入库
+/scripts/
+/Resources/about/make-mascot.swift
+/Resources/icons/make-icon.swift
+
 *.xcuserstate
 *.xcworkspace/xcuserdata/

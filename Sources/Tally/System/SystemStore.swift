@@ -25,6 +25,14 @@ final class SystemStore {
 
     func start() {
         guard timer == nil else { return }
+        // 演示模式：全是假数据，不起定时器（刷新按钮靠 timer 判，跟着不动）
+        if DemoMode.isOn {
+            hardware = DemoData.hardware(now: Date())
+            sample = DemoData.systemSample
+            batteryHealthPercent = DemoData.systemSample.battery?.healthPercent
+            trash = DemoData.trash
+            return
+        }
         if hardware == nil { hardware = HardwareInfo.read() }
         readBatteryHealth()
         scanTrash()
@@ -74,9 +82,9 @@ final class SystemStore {
         }
     }
 
-    /// 调用方已经确认过了；这里只管删、再扫、报结果。
+    /// 调用方已经确认过了；这里只管删、再扫、报结果。演示模式不删：废纸篓是真的。
     func emptyTrash() {
-        guard !emptying else { return }
+        guard !emptying, !DemoMode.isOn else { return }
         emptying = true
         trashGeneration += 1
         let mine = trashGeneration

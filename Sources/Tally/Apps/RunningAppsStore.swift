@@ -62,6 +62,14 @@ final class RunningAppsStore {
 
     func start() {
         guard timer == nil else { return }
+        // 演示模式：列表是编的，图标按 bundleURL 从系统 app 取；不起定时器（刷新按钮靠 timer 判，跟着不动）。图标只取一次，stop 不清它
+        if DemoMode.isOn {
+            if apps.isEmpty {
+                apps = DemoData.apps
+                icons = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, Self.smallIcon(pid: $0.id, bundleURL: $0.bundleURL)) })
+            }
+            return
+        }
         tick()
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -112,8 +120,9 @@ final class RunningAppsStore {
         return NSImage(cgImage: scaled, size: NSSize(width: 18, height: 18))
     }
 
-    /// 激活并触发 reopen，菜单栏 app 通常会弹出主窗口。
+    /// 激活并触发 reopen，菜单栏 app 通常会弹出主窗口。演示模式下这三个动作都不做：列表是编的，点下去落到的是真 app。
     func open(_ app: RunningApp) {
+        guard !DemoMode.isOn else { return }
         NSWorkspace.shared.openApplication(at: app.bundleURL, configuration: NSWorkspace.OpenConfiguration()) { _, error in
             if let error { Log.error("打开 \(app.name) 失败: \(error.localizedDescription)") }
         }
@@ -122,11 +131,13 @@ final class RunningAppsStore {
     /// 「Updater」「Helper」这类通用名字看不出是谁的东西，路径里才有归属（如 Caches/com.tencent.xinWeChat/…）。
     /// 面板不抢激活，AppKit 的悬停提示画不出来，所以走访达。
     func reveal(_ app: RunningApp) {
+        guard !DemoMode.isOn else { return }
         NSWorkspace.shared.activateFileViewerSelecting([app.bundleURL])
     }
 
     /// 正常退出，不强杀；对方拒绝就记一笔，下一次刷新它还在。列表里也有 Tally 自己，`terminate()` 对当前进程无效，走 NSApp。
     func quit(_ app: RunningApp) {
+        guard !DemoMode.isOn else { return }
         if app.id == ProcessInfo.processInfo.processIdentifier {
             NSApp.terminate(nil)
             return

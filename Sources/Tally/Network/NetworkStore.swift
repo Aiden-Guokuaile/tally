@@ -81,6 +81,7 @@ final class NetworkStore {
     func start() {
         guard !started else { return }
         started = true
+        if DemoMode.isOn { return startDemo() }
         tick()
         refreshSnapshot()
         rateTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -108,9 +109,23 @@ final class NetworkStore {
         Log.debug("网络采样停止")
     }
 
-    /// 标题行的刷新按钮：速率立刻差分一次，接口与代理立刻重拉。
+    /// 演示模式：接口与代理是假的，速率每秒按时间算一个点。定时器挂在 `rateTimer` 上，`stop()` 照常收；
+    /// `stop()` 会清掉曲线，所以每次开页先补满 60 秒，不然截图里的图只有右边一小截。
+    private func startDemo() {
+        primary = DemoData.interface
+        proxy = DemoData.proxy
+        let now = Date().timeIntervalSince1970
+        for secondsAgo in stride(from: Self.historyLength - 1, through: 0, by: -1) {
+            record(DemoData.throughput(at: now - Double(secondsAgo)))
+        }
+        rateTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.record(DemoData.throughput(at: Date().timeIntervalSince1970)) }
+        }
+    }
+
+    /// 标题行的刷新按钮：速率立刻差分一次，接口与代理立刻重拉。演示模式不动：重拉会把真网卡、真 IP 换上来。
     func refreshNow() {
-        guard started else { return }
+        guard started, !DemoMode.isOn else { return }
         tick()
         refreshSnapshot()
     }

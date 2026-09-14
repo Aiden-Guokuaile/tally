@@ -149,7 +149,7 @@ struct Preferences: Codable, Equatable {
 @Observable
 final class PreferencesStore {
 
-    static let shared = PreferencesStore()
+    static let shared = DemoMode.isOn ? PreferencesStore(inMemory: DemoData.preferences) : PreferencesStore()
 
     /// Tally 的数据目录，会话状态文件也在这下面。
     nonisolated static let directory = FileManager.default.homeDirectoryForCurrentUser
@@ -168,7 +168,13 @@ final class PreferencesStore {
     /// 最近一次落盘失败的原因，设置页红字显示；成功后清空。内存里的值已经改了，重启会回到磁盘上的旧值。
     private(set) var saveError: String?
 
-    private let url: URL
+    /// nil 是只在内存里（演示模式）：不读也不写 preferences.json，录屏时拨的开关不该改掉真设置。
+    private let url: URL?
+
+    init(inMemory prefs: Preferences) {
+        url = nil
+        self.prefs = prefs
+    }
 
     init(url: URL = PreferencesStore.directory.appendingPathComponent("preferences.json")) {
         self.url = url
@@ -183,6 +189,7 @@ final class PreferencesStore {
     }
 
     private func save() {
+        guard let url else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),

@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import QuickLookThumbnailing
+import UniformTypeIdentifiers
 
 /// 放进文件架的是什么：保留时长分开算。
 enum ShelfKind: String, Codable {
@@ -59,7 +60,17 @@ enum RetentionFormat {
 @Observable
 final class ShelfStore {
 
-    static let shared = ShelfStore()
+    static let shared = DemoMode.isOn ? demo() : ShelfStore()
+
+    /// 演示模式：目录指到不会被建出来的临时路径（真索引不读也不写）、保留时长拉满（录着录着不会被清掉）；
+    /// 先把 enabled 置上，设置里的 setEnabled(true) 就在 guard 处返回，不去读索引。
+    private static func demo() -> ShelfStore {
+        let store = ShelfStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("tally-demo-shelf"),
+                               retention: { (30 * 86400, 30 * 86400) })
+        store.enabled = true
+        store.items = DemoData.shelfItems(now: Date())
+        return store
+    }
 
     let directory: URL
     private(set) var items: [ShelfItem] = []
@@ -122,6 +133,13 @@ final class ShelfStore {
     /// 这页可见：把缩略图读进内存；不可见就放掉。
     func start() {
         visible = true
+        // 演示模式的条目在磁盘上没有文件和缩略图：按扩展名给系统类型图标，不然四件都是同一张白纸；stop() 会清掉，每次开页重给
+        if DemoMode.isOn {
+            for item in items {
+                thumbnails[item.id] = NSWorkspace.shared.icon(for: UTType(filenameExtension: (item.name as NSString).pathExtension) ?? .data)
+            }
+            return
+        }
         purgeExpired(now: Date())
         for item in items where thumbnails[item.id] == nil {
             thumbnails[item.id] = NSImage(contentsOf: thumbURL(item))
@@ -175,8 +193,9 @@ final class ShelfStore {
     // MARK: 增删
 
     /// 每个文件复制进自己的目录（同名也不冲突），复制在后台，缩略图用 QuickLook 生成落盘。`kind` 决定保留多久。
+    /// 演示模式不收：录屏时拖进来的是真文件。
     func add(urls: [URL], kind: ShelfKind = .file) async {
-        guard enabled else { return }
+        guard enabled, !DemoMode.isOn else { return }
         for url in urls {
             let item = ShelfItem(
                 id: UUID().uuidString,
@@ -225,6 +244,7 @@ final class ShelfStore {
     /// 返回错误文案，nil 是成功。目标已经有同名文件就报错，什么都不删——这条路是给「我要确定地移走」用的，
     /// 不能默默覆盖。
     func moveTo(_ item: ShelfItem, directory: URL) -> String? {
+        guard !DemoMode.isOn else { return nil }
         do {
             try FileManager.default.moveItem(at: cutURL(item), to: directory.appendingPathComponent(item.name))
         } catch {
@@ -234,7 +254,9 @@ final class ShelfStore {
         return nil
     }
 
+    /// 演示模式下删除、清空都不做：条目是编的，删了这一轮录屏就没东西可拍了。
     func remove(_ item: ShelfItem) {
+        guard !DemoMode.isOn else { return }
         deleteFiles(of: item)
         items.removeAll { $0.id == item.id }
         thumbnails[item.id] = nil
@@ -243,6 +265,7 @@ final class ShelfStore {
     }
 
     func clear() {
+        guard !DemoMode.isOn else { return }
         for item in items { deleteFiles(of: item) }
         items = []
         thumbnails = [:]
