@@ -37,7 +37,6 @@ final class DemoModeTests: XCTestCase {
         dump(DemoData.shelfItems(now: now), to: &text)
         dump(DemoData.apps, to: &text)
         dump(DemoData.interface, to: &text)
-        dump(DemoData.proxy, to: &text)
         dump(DemoData.hardware(now: now), to: &text)
         dump(DemoData.systemSample, to: &text)
         XCTAssertTrue(text.contains("/Users/demo/"), "确认 dump 真的带出了路径")

@@ -109,19 +109,6 @@ enum DemoData {
     static let interface = InterfaceInfo(name: "en0", address: "192.0.2.24", router: "192.0.2.1", dns: ["1.1.1.1", "8.8.8.8"],
                                          wifi: WiFiInfo(rssi: -48, noise: -92, transmitRate: 1200, channel: 149))
 
-    static let proxy = ProxyInfo(
-        settings: ProxySettings(http: "127.0.0.1:7897", https: "127.0.0.1:7897", socks: "127.0.0.1:7897", tunActive: false),
-        coreAvailable: true,
-        core: .running(mode: "rule", tun: false, groups: [
-            ProxyGroup(name: "节点选择", now: "香港 02"),
-            ProxyGroup(name: "AI 服务", now: "美国 01"),
-            ProxyGroup(name: "流媒体", now: "新加坡 03"),
-            ProxyGroup(name: "漏网之鱼", now: "节点选择"),
-        ]),
-        // 图标按 pid 和 bundleURL 取，两个都给不存在的：卡片只画名字，点「打开」也叫不起任何程序
-        app: ProxyApp(name: "Clash Verge", bundleIdentifier: "io.github.clash-verge-rev.clash-verge-rev", bundleURL: nil, pid: pid_t(firstPid + 20))
-    )
-
     /// 每秒一个点：几条周期不同的正弦叠起来，下行在 1–6 MB/s、上行在 100–600 KB/s 之间起伏，曲线是活的又不乱跳。
     static func throughput(at time: TimeInterval) -> (up: Int, down: Int) {
         let down = 3_700_000 + 1_600_000 * sin(time / 9) + 1_000_000 * sin(time / 2.7)

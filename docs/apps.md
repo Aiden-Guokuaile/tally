@@ -30,7 +30,7 @@ Tally 自己也按这套算：平时是 accessory（`LSUIElement`）算隐藏，
 
 ```bash
 swift test --filter RunningAppsTests
-./scripts/install.sh --build && sleep 3; pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
+pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
 open -a Tally --args --open apps && sleep 5 && screencapture -R256,0,1000,480 -x /tmp/tally-apps.png
 ```
 

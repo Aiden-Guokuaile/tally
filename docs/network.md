@@ -35,7 +35,7 @@
 
 ```bash
 swift test --filter 'InterfaceSamplerTests|NetworkStoreTests|ProxyAppDetectorTests|MihomoClientTests|ChunkedDecoderTests'
-./scripts/install.sh --build && sleep 3; pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
+pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
 open -a Tally --args --open network && sleep 8 && screencapture -R256,0,1000,480 -x /tmp/tally-network.png
 ipconfig getifaddr en0; route -n get default | grep gateway; scutil --dns | grep -m1 nameserver; scutil --proxy | grep -E 'HTTPProxy|HTTPPort'
 ```

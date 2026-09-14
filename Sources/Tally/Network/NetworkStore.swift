@@ -109,11 +109,10 @@ final class NetworkStore {
         Log.debug("网络采样停止")
     }
 
-    /// 演示模式：接口与代理是假的，速率每秒按时间算一个点。定时器挂在 `rateTimer` 上，`stop()` 照常收；
+    /// 演示模式：接口是假的，不画代理卡片（公开截图里不放代理软件与节点），速率每秒按时间算一个点。定时器挂在 `rateTimer` 上，`stop()` 照常收；
     /// `stop()` 会清掉曲线，所以每次开页先补满 60 秒，不然截图里的图只有右边一小截。
     private func startDemo() {
         primary = DemoData.interface
-        proxy = DemoData.proxy
         let now = Date().timeIntervalSince1970
         for secondsAgo in stride(from: Self.historyLength - 1, through: 0, by: -1) {
             record(DemoData.throughput(at: now - Double(secondsAgo)))

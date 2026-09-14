@@ -39,7 +39,7 @@ Also on board: network throughput and proxy status, memory and battery, running 
 <table>
   <tr>
     <td width="50%"><img src="docs/images/ai.png" alt="AI page: session list and provider usage"><br><b>AI</b>: sessions + a usage row per provider</td>
-    <td width="50%"><img src="docs/images/network.png" alt="Network page: throughput, Wi-Fi, IP and proxy"><br><b>Network</b>: throughput, Wi-Fi, IP, proxy</td>
+    <td width="50%"><img src="docs/images/network.png" alt="Network page: throughput, Wi-Fi, IP and DNS"><br><b>Network</b>: throughput, Wi-Fi, IP, DNS</td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/system.png" alt="System page: CPU, memory, battery and Trash"><br><b>System</b>: CPU, memory, battery, Trash</td>

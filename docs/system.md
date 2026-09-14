@@ -42,7 +42,7 @@ IOKit 注册表 `AppleSmartBattery`（`ioreg` 就能看，不是私有 API）：
 
 ```bash
 swift test --filter SystemSamplerTests
-./scripts/install.sh --build && sleep 3; pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
+pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
 open -a Tally --args --open system && sleep 7 && screencapture -R256,0,1000,480 -x /tmp/tally-system.png
 sysctl -n machdep.cpu.brand_string hw.memsize kern.memorystatus_vm_pressure_level; uptime; du -sh ~/.Trash
 ioreg -r -c AppleSmartBattery | grep -E '"(CycleCount|DesignCapacity|AppleRawMaxCapacity|CurrentCapacity)"'

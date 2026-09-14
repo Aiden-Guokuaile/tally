@@ -54,7 +54,7 @@
 
 - **设置只在内存里**（`PreferencesStore(inMemory:)`）：不读也不写 `preferences.json`，录屏时拨的开关退出就没了。在默认值上改几项：截屏时不隐藏面板（开着截出来是空的）、不查新版本、不弹电池提示、不自动收新截图、没有刘海屏时不发系统通知（会去要授权）、文件架开、菜单栏小恐龙开（它只读整机 CPU 和内存，是真数据，和系统页的假内存对不上，接受）、不画摄像头 / 麦克风占用点（那是真设备状态）、多开 DeepSeek、启动页 AI。
 - **AI 页**：七个会话——等审批「给订单列表加分页」、等输入「迁移 CI 到 GitHub Actions」、在跑两个、跑完一个、已关闭两个；目录在 `/Users/demo/code/` 下，pid 从 999999 起（macOS 的 pid 到不了），没关闭的都在两小时内动过、不画成失联。`SessionStore` 的两个目录指到不存在的临时路径，`start()` 直接赋值：不碰会话目录，也不碰 `ClaudeHome`（它要问登录 shell、读心跳文件）。用量换成 `DemoUsageProvider`：Claude（Max，今日 $12.40 · 1.8M，本周 $86.10，5 小时 42%、7 天 61% 配速线橙、Fable 周窗口 23%）、Codex（Pro，5 小时 18%、7 天 35%，今日 $4.20）、DeepSeek（余额 ¥128.50）；会话条数和用量家数刚好让 AI 页放进面板最高高度（屏高六成），再多一行底部就被裁；数字固定，重置时刻按每轮刷新的 `now` 往后算，配额条不会过期消失。不扫日志、不读扫描缓存与 429 退避文件、不碰钥匙串和凭据文件、不调接口。
-- **网络页**：Wi-Fi en0 −48 dBm，本机 192.0.2.24、网关 192.0.2.1（文档专用段 192.0.2.0/24），DNS 1.1.1.1、8.8.8.8；速率每秒按几条正弦叠出一个点（下行 1–6 MB/s、上行 100–600 KB/s），定时器挂在 `rateTimer` 上照常随收起停，每次开页先补满 60 秒曲线；代理卡片是在跑的 Clash Verge（pid 与 bundleURL 都不存在，只画名字、没有图标）、四个组。刷新按钮不动：重拉会换上真网卡。
+- **网络页**：Wi-Fi en0 −48 dBm，本机 192.0.2.24、网关 192.0.2.1（文档专用段 192.0.2.0/24），DNS 1.1.1.1、8.8.8.8；速率每秒按几条正弦叠出一个点（下行 1–6 MB/s、上行 100–600 KB/s），定时器挂在 `rateTimer` 上照常随收起停，每次开页先补满 60 秒曲线；不画代理卡片：截图要放进公开的 README，不放代理软件与节点名。刷新按钮不动：重拉会换上真网卡。
 - **系统页**：Apple M4 Pro（10 性能 + 4 能效）48 GB、CPU 23%、内存 58% 正常、电池 87% 放电 · 最大容量 96%、内存大户 Xcode / Safari / Claude、废纸篓 12 项 1.3 GB；不起采样定时器，刷新按钮跟着不动。
 - **应用页**：七个系统自带 app（Safari、邮件、音乐、备忘录、日历、预览、终端），图标按 `/System/Applications` 与 `/Applications/Safari.app` 取，内存是编的；不起定时器。
 - **文件架**：四件（设计稿-首页.png、接口文档.pdf、一张截图、发布清单.md）；目录指到不会被建出来的临时路径、保留时长拉满（录着录着不会被清掉），`start()` 按扩展名给系统类型图标当缩略图。
@@ -133,29 +133,27 @@ open -a Tally --args --demo --open network    # 静态截图：钉住展开到�
 | 文件架 | 开关、新截图自动放进来（开的时候选截图文件夹）、保留多久（文件默认 1 天、截图默认 30 分钟，到点清）、存放位置（在访达中显示）、已暂存几项、清空（[shelf.md](shelf.md)） |
 | hook | 两侧 hook 行（状态 + 安装 / 移除，见 [hooks.md](hooks.md)） |
 | 用量 | 各家提供方开关；DeepSeek、Kimi、GLM、New API 每家一节：开关、现在用的是哪份凭据（手填 / Claude Code 设置 / Kimi Code / zcode / opencode）、手填的 key 与区（New API 是站点地址、访问令牌、用户 ID）、「现在查一次」（只重查这一家，不占 60 秒节流），见 [ai.md](ai.md)「国内几家与 New API」 |
-| 关于 | 原「帮助」页：48pt 图标、「Tally」24pt、版本行读 `CFBundleShortVersionString`、「本应用由「Aiden-Guokuaile」个人开发并所有」、个人开发者及隐私声明（不列移植模块）；版本与作者之间显示喜狮图案（160pt）及「喜狮护航 · 用量有数」：原图是白底黑线稿，`Resources/about/make-mascot.swift` 把它缩到 480px、按亮度转成透明底（亮度 235 以上当白底），产物 `Resources/about/mascot.png` 进仓库、`build-app.sh` 拷进 app；界面按模板图着色，深浅色模式都跟着文字色——直接放白底原图，深色模式下是一整块白方块。辅助功能读「喜狮图案」；下面两段短说明：装 hook、卸载（面板怎么用、数据从哪来在界面上一看就知道，不写） |
+| 关于 | 原「帮助」页：48pt 图标、「Tally」24pt、版本行读 `CFBundleShortVersionString`、「本应用由「Aiden-Guokuaile」个人开发并所有」、个人开发者及隐私声明（不列移植模块）；版本与作者之间显示喜狮图案（160pt）及「喜狮护航 · 用量有数」：原图是白底黑线稿，缩到 480px、按亮度转成透明底（亮度 235 以上当白底），产物 `Resources/about/mascot.png` 进仓库、打包时拷进 app；界面按模板图着色，深浅色模式都跟着文字色——直接放白底原图，深色模式下是一整块白方块。辅助功能读「喜狮图案」；下面两段短说明：装 hook、卸载（面板怎么用、数据从哪来在界面上一看就知道，不写） |
 
 开关的落点见 [monitors.md](monitors.md)。设置文件是 `~/Library/Application Support/Tally/preferences.json`，解码一律 `decodeIfPresent` 取默认；读失败记日志按默认值，写失败在「通用」顶部红字（内存里已改，重启会回到磁盘上的值）。
 
 ## 图标
 
-`Resources/icons/make-icon.swift` 用 AppKit 画 1024 的计数刻线（深灰渐变底、四根白竖线、一根近似面板绿的斜线、macOS 圆角），出 iconset 十个尺寸再 `iconutil -c icns`，产物 `Resources/icons/AppIcon.icns` 进仓库：
-
-```bash
-swiftc Resources/icons/make-icon.swift -o /tmp/make-icon && /tmp/make-icon Resources/icons
-```
+`Resources/icons/AppIcon.icns`：AppKit 画的 1024 计数刻线（深灰渐变底、四根白竖线、一根近似面板绿的斜线、macOS 圆角），出 iconset 十个尺寸再 `iconutil -c icns`，产物进仓库；生成它的脚本只留在维护者本地。
 
 ## 打包与安装
 
-`Package.swift`：swift-tools 6.0，macOS 15，三个目标（`TallyKit` 共用库、`Tally` app、`TallyHook` hook 小程序）加测试目标，全部 `swiftLanguageMode(.v5)`。签名身份由 `TALLY_SIGN_IDENTITY` 决定，默认「Tally Dev」；钥匙串里没有这张证书就报错退出，不退回 ad-hoc：ad-hoc 每次编译都是一个新的代码身份，「允许 Tally 控制 <终端>」这类按身份记的授权会全部作废，重装一次就重新问一次。证书是自签的代码签名证书（钥匙串访问 → 证书助理 → 创建证书，自签名根 + 代码签名），叫别的名字就 `export TALLY_SIGN_IDENTITY="证书名"`。有了固定身份，授权跨重装有效（designated requirement 从「二进制哈希」变成「证书指纹」，`codesign -d -r-` 能看到）。证书不必设信任：`codesign` 照样能用它签，我们要的只是一个不变的身份。分发的 DMG 由 `build-dmg.sh` 强制重签成 ad-hoc——自签证书在别人机器上不受信任，验不过会被报「已损坏」，比 ad-hoc 的「无法验证开发者」更吓人；对方装一次之后授权同样记得住。
+打包、签名、打 DMG 与发版的脚本只留在维护者本地，不在仓库里；这一节记它们做的事。
 
-`scripts/build-app.sh` 组装 `build/Tally.app`（`Contents/MacOS/Tally` 与 `tally-hook`、`Info.plist`、`AppIcon.icns`、`pricing.json`），用上面的身份签名；`scripts/install.sh --build` 编译并装进 `/Applications`、清 quarantine、接管旧实例、把 LaunchAgent 指到新位置；`scripts/build-dmg.sh` 打分发镜像。`Info.plist`：`LSUIElement = true`（无 Dock 图标）、`CFBundleIdentifier = com.aiden.tally`、`NSAppleEventsUsageDescription`（定位终端要 Apple Events）。
+`Package.swift`：swift-tools 6.0，macOS 15，三个目标（`TallyKit` 共用库、`Tally` app、`TallyHook` hook 小程序）加测试目标，全部 `swiftLanguageMode(.v5)`。签名身份由 `TALLY_SIGN_IDENTITY` 决定，默认「Tally Dev」；钥匙串里没有这张证书就报错退出，不退回 ad-hoc：ad-hoc 每次编译都是一个新的代码身份，「允许 Tally 控制 <终端>」这类按身份记的授权会全部作废，重装一次就重新问一次。证书是自签的代码签名证书（钥匙串访问 → 证书助理 → 创建证书，自签名根 + 代码签名），叫别的名字就 `export TALLY_SIGN_IDENTITY="证书名"`。有了固定身份，授权跨重装有效（designated requirement 从「二进制哈希」变成「证书指纹」，`codesign -d -r-` 能看到）。证书不必设信任：`codesign` 照样能用它签，我们要的只是一个不变的身份。分发的 DMG 强制重签成 ad-hoc——自签证书在别人机器上不受信任，验不过会被报「已损坏」，比 ad-hoc 的「无法验证开发者」更吓人；对方装一次之后授权同样记得住。
+
+打包时组装 `Tally.app`（`Contents/MacOS/Tally` 与 `tally-hook`、`Info.plist`、`AppIcon.icns`、`pricing.json` 与各资源目录），用上面的身份签名；本机安装时编译并装进 `/Applications`、清 quarantine、接管旧实例、把 LaunchAgent 指到新位置；分发时另打镜像。`Info.plist`：`LSUIElement = true`（无 Dock 图标）、`CFBundleIdentifier = com.aiden.tally`、`NSAppleEventsUsageDescription`（定位终端要 Apple Events）。
 
 ## 验证
 
 ```bash
 swift test --filter 'NotchGeometryTests|SwipeTests|PreferencesTests|NotchPanelTests|PeekTests|SubprocessTests|DemoModeTests'
-./scripts/install.sh --build && sleep 3 && screencapture -R256,0,1000,60 -x /tmp/tally-closed.png
+open -a Tally && sleep 3 && screencapture -R256,0,1000,60 -x /tmp/tally-closed.png
 pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done; open -a Tally --args --open ai && sleep 4 && screencapture -R256,0,1000,480 -x /tmp/tally-open.png
 ```
 

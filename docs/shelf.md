@@ -63,7 +63,7 @@
 
 ```bash
 swift test --filter 'ShelfStoreTests|ScreenshotWatcherTests|ScreenshotFolderFinderTests|PreferencesTests'
-./scripts/install.sh --build && sleep 3; pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
+pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done
 open -a Tally --args --open shelf && sleep 5 && screencapture -R256,0,1000,480 -x /tmp/tally-shelf.png
 ```
 

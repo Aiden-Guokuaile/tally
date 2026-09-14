@@ -36,7 +36,7 @@
 <table>
   <tr>
     <td width="50%"><img src="docs/images/ai.png" alt="AI 页：会话列表与各家用量"><br><b>AI</b>：会话列表 + 各家用量条</td>
-    <td width="50%"><img src="docs/images/network.png" alt="网络页：吞吐、Wi-Fi、IP 与代理"><br><b>网络</b>：吞吐、Wi-Fi、IP、代理</td>
+    <td width="50%"><img src="docs/images/network.png" alt="网络页：吞吐、Wi-Fi、IP 与 DNS"><br><b>网络</b>：吞吐、Wi-Fi、IP、DNS</td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/system.png" alt="系统页：CPU、内存、电池与废纸篓"><br><b>系统</b>：CPU、内存、电池、废纸篓</td>
