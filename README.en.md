@@ -21,10 +21,10 @@ With several agent sessions open you keep switching windows to see which one nee
 
 - **Every session at a glance**: Claude Code and Codex sessions grouped into "waiting on you / working / recent", with approval, input, compacting and done states.
 - **States you can trust**: Esc interrupts, API errors, and background subagents still running after the main turn ends are all handled — cases the hooks never report — so nothing stays stuck on "working".
-- **Back to the terminal in one click**: click a row (or ⌘1–⌘5) to jump to that session's terminal tab, tmux panes included; click a closed session to resume it in a new window.
+- **Back to the terminal in one click**: click a row (or ⌘1–⌘9, ⌘0) to jump to that session's terminal tab, tmux panes included; closed sessions live on a separate "已关闭" (Closed) page of the sessions card, with a "接着聊" (Resume) button that reopens them in a new window.
 - **Every provider side by side**: Claude, Codex, Cursor and Antigravity, plus DeepSeek, Kimi, Zhipu GLM and New API relays (off by default); Claude and Codex also show today / this week's spend and a pace line that tells you whether you'll run out before the reset. Alerts fire at 80% and when a quota is exhausted, and a window you were alerted about tells you when it resets.
 - **Credentials without nagging**: reads the tokens each tool already stored, read-only — never refreshes them, never writes to the Keychain, normally no permission prompts.
-- **Handy extras**: network throughput and proxy status, memory and battery, running apps, a file shelf (drag to the notch, `open -a Tally <file>`, or new screenshots automatically), keep-awake (including with the lid closed).
+- **Handy extras**: network throughput and proxy status, memory and battery, running apps, a file shelf (drag to the notch, `open -a Tally <file>`, or new screenshots automatically), keep-awake (including with the lid closed), plus an optional menu bar dinosaur that sleeps, runs and sprints with CPU load, sprints or gets angry when memory runs tight, and keeps an egg beside it that fills up with memory use.
 - **Local and dependency-free**: native SwiftUI + AppKit, no third-party dependencies, no telemetry.
 
 ## Pages
@@ -33,7 +33,7 @@ With several agent sessions open you keep switching windows to see which one nee
 - **Network**: interface throughput (60-second sparkline), Wi-Fi signal, local IP, gateway, DNS; with a system proxy or proxy app running, an extra card identifies the app, its ports and whether TUN is present (plus the mode, when the mihomo core's control socket is available).
 - **System**: chip, memory, CPU, disk, uptime, battery health, top memory users, Trash size with one-click empty.
 - **Apps**: running apps by memory, with menu bar and background apps marked; click to open, right-click to quit.
-- **Shelf**: drop files on the notch to keep a copy (`open -a Tally <file>` from scripts and new screenshots can land there too), then drag them out, AirDrop or open them; items older than 3 days are cleared the next time the shelf opens.
+- **Shelf**: drop files on the notch to keep a copy (`open -a Tally <file>` from scripts and new screenshots can land there too), then drag them out, AirDrop or open them; items are removed when their retention runs out (files 1 day, screenshots 30 minutes by default; adjustable in Settings).
 
 Hover-to-expand, shortcuts, the shelf, sounds, quota alerts and each usage provider can be switched off individually in Settings; "hide the panel over full-screen apps" and "add new screenshots to the shelf" are off by default.
 
@@ -111,7 +111,7 @@ Open Settings (gear icon on the panel, or ⌘, while expanded) → "hook" → cl
 | Hover over / leave the notch | Expand / collapse |
 | ⌥⇧T | Expand and pin / collapse |
 | Two-finger swipe, three-finger swipe, keys 1–9 | Switch pages |
-| ⌘1–⌘5 | Jump to session N; hold ⌘ to see the numbers |
+| ⌘1–⌘9, ⌘0 | Jump to session N (⌘0 is the 10th); hold ⌘ to see the numbers |
 | Gear icon, ⌘, while expanded | Settings |
 | Right-click the collapsed notch | Menu: Settings, refresh usage, quit |
 

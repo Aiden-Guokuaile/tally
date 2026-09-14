@@ -9,7 +9,9 @@ struct ShelfPage: View {
     var body: some View {
         Card {
             HStack(spacing: 6) {
-                Text(store.items.isEmpty ? "把文件拖到刘海上就会放到这里，保留 3 天" : "点开、拖出去；按住 ⌘ 拖出去是剪切，来源文件一起走")
+                Text(store.items.isEmpty
+                     ? "把文件拖到刘海上就会放到这里，保留 \(RetentionFormat.text(PreferencesStore.shared.prefs.shelfFileRetentionMinutes))"
+                     : "点开、拖出去；按住 ⌘ 拖出去是剪切，来源文件一起走")
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
                 Spacer(minLength: 8)

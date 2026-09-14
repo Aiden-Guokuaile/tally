@@ -49,18 +49,27 @@ struct Preferences: Codable, Equatable {
     var hideFromCapture = false
     /// 「文件架」页：拖文件到刘海暂存。
     var shelfEnabled = true
+    /// 文件架保留多久（分钟），到点删架上那份副本：拖进来的文件默认 1 天，自动收进来的截图默认 30 分钟——截图一天几十张，留久了把文件架塞满。
+    var shelfFileRetentionMinutes = 1440
+    var shelfScreenshotRetentionMinutes = 30
     /// 面板展开时按 1–9 切到第 N 个页签。
     var pageNumberKeys = true
-    /// 面板展开时按 ⌘1–⌘5 跳到 AI 页第 N 个会话的终端。只在面板展开时归面板，收起后浏览器、终端自己的 ⌘1–⌘5 照常。
+    /// 面板展开时按 ⌘1–⌘9 / ⌘0 跳到 AI 页第 N 个会话的终端。只在面板展开时归面板，收起后浏览器、终端自己的同名键照常。
     var sessionCommandKeys = true
-    /// 会话结束后在「最近」里留一行「已关闭」，点一下接着聊。
+    /// 会话结束后在会话卡片的「已关闭」那一页留一行，点行尾「接着聊」。
     var keepClosedSessions = true
+    /// 已关闭的会话最多留几条，多出来的删最旧的。
+    var closedSessionLimit = 10
     /// 配额涨过 80%、用完、重置时闭合态弹一下。
     var quotaPeek = true
     /// 会话跑完、在等你时响一声。
     var sessionSound = true
     /// 全屏 app 里不出现刘海面板（提示条也看不到，提示音照响）。
     var hideInFullScreen = false
+    /// 菜单栏小恐龙：跟着 CPU 睡觉 / 跑步 / 冲刺，内存吃紧也冲刺、生气，旁边的蛋显示内存。默认关：刘海屏的菜单栏本来就挤。
+    var strideEnabled = false
+    /// 恐龙旁边显示内存百分比。
+    var strideShowsValue = false
     /// 没有刘海屏（合盖接外接屏）时，会话、配额、文件架提示改发系统通知。
     var notifyWithoutNotch = true
     /// 新截图自动放进文件架；文件夹是用户在选择面板里点过的那个（点过才有读它的授权）。
@@ -72,6 +81,12 @@ struct Preferences: Codable, Equatable {
     var updateNotifiedVersion: String?
 
     init() {}
+
+    /// 文件架保留时长夹在 1 分钟到 30 天之间：0 等于放进来就删，太长的话副本堆在磁盘上没人管。
+    static func retentionMinutes(_ value: Int) -> Int { min(max(value, 1), 30 * 1440) }
+
+    /// 已关闭的会话条数夹在 1 到 50 之间：手改成 0 等于关掉，关掉有单独的开关。
+    static func closedLimit(_ value: Int) -> Int { min(max(value, 1), 50) }
 
     /// 提示条秒数夹在 2 到 30 之间。
     static func peekSeconds(_ value: Int) -> Int { min(max(value, 2), 30) }
@@ -110,12 +125,17 @@ struct Preferences: Codable, Equatable {
         privacyDots = try c.decodeIfPresent(Bool.self, forKey: .privacyDots) ?? d.privacyDots
         hideFromCapture = try c.decodeIfPresent(Bool.self, forKey: .hideFromCapture) ?? d.hideFromCapture
         shelfEnabled = try c.decodeIfPresent(Bool.self, forKey: .shelfEnabled) ?? d.shelfEnabled
+        shelfFileRetentionMinutes = Self.retentionMinutes(try c.decodeIfPresent(Int.self, forKey: .shelfFileRetentionMinutes) ?? d.shelfFileRetentionMinutes)
+        shelfScreenshotRetentionMinutes = Self.retentionMinutes(try c.decodeIfPresent(Int.self, forKey: .shelfScreenshotRetentionMinutes) ?? d.shelfScreenshotRetentionMinutes)
         pageNumberKeys = try c.decodeIfPresent(Bool.self, forKey: .pageNumberKeys) ?? d.pageNumberKeys
         sessionCommandKeys = try c.decodeIfPresent(Bool.self, forKey: .sessionCommandKeys) ?? d.sessionCommandKeys
         keepClosedSessions = try c.decodeIfPresent(Bool.self, forKey: .keepClosedSessions) ?? d.keepClosedSessions
+        closedSessionLimit = Self.closedLimit(try c.decodeIfPresent(Int.self, forKey: .closedSessionLimit) ?? d.closedSessionLimit)
         quotaPeek = try c.decodeIfPresent(Bool.self, forKey: .quotaPeek) ?? d.quotaPeek
         sessionSound = try c.decodeIfPresent(Bool.self, forKey: .sessionSound) ?? d.sessionSound
         hideInFullScreen = try c.decodeIfPresent(Bool.self, forKey: .hideInFullScreen) ?? d.hideInFullScreen
+        strideEnabled = try c.decodeIfPresent(Bool.self, forKey: .strideEnabled) ?? d.strideEnabled
+        strideShowsValue = try c.decodeIfPresent(Bool.self, forKey: .strideShowsValue) ?? d.strideShowsValue
         notifyWithoutNotch = try c.decodeIfPresent(Bool.self, forKey: .notifyWithoutNotch) ?? d.notifyWithoutNotch
         screenshotsToShelf = try c.decodeIfPresent(Bool.self, forKey: .screenshotsToShelf) ?? d.screenshotsToShelf
         screenshotFolder = try c.decodeIfPresent(String.self, forKey: .screenshotFolder)

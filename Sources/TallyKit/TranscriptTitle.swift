@@ -131,7 +131,7 @@ public enum TranscriptTitle {
 
     /// 是不是在终端里开的交互会话：只有这种结束后才留一行「已关闭」给人接着聊。认的是反面，确认是脚本跑的才算不是：
     /// Claude 的 transcript 尾巴里只有 `"entrypoint":"sdk-cli"`（`claude -p` 和 SDK），Codex 的 rollout 第一行 `session_meta`
-    /// 的 `source` 是 `"exec"`（`codex exec`）或一个对象（子 agent）。文件在但判不出来按是算：多留一行最多占个位置（只留 5 条），
+    /// 的 `source` 是 `"exec"`（`codex exec`）或一个对象（子 agent）。文件在但判不出来按是算：多留一行最多占个位置（已关闭的条数有上限），
     /// 误删了就再也接不回去。文件不存在按不是算：没有 transcript 就没有能接着聊的东西。
     public static func isInteractive(transcript url: URL, provider: String) -> Bool {
         guard FileManager.default.fileExists(atPath: url.path) else { return false }

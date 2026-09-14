@@ -27,18 +27,20 @@ final class SessionStore {
     /// 整文件扫过一次的会话，不管有没有找到都记着，别反复扫几 MB 的文件。
     private var fullScanTitles: [String: String?] = [:]
 
-    /// 已关闭的会话最多留几条：一天开关几十个会话的话，列表会被它们挤满。
-    static let maxEnded = 5
     /// 设置里「保留已关闭的会话」；测试注入。
     private let keepClosed: () -> Bool
+    /// 已关闭的会话最多留几条（设置里调，默认 10）：一天开关几十个会话的话，那一页会被它们挤满；测试注入。
+    private let closedLimit: () -> Int
 
     /// 单例整个进程周期都活着，不需要 deinit 里收 source。
     init(directory: URL = PreferencesStore.directory.appendingPathComponent("sessions"),
          claudeSessions: URL = ClaudeHome.url.appendingPathComponent("sessions"),
-         keepClosed: (() -> Bool)? = nil) {
+         keepClosed: (() -> Bool)? = nil,
+         closedLimit: (() -> Int)? = nil) {
         self.directory = directory
         self.claudeSessions = claudeSessions
         self.keepClosed = keepClosed ?? { PreferencesStore.shared.prefs.keepClosedSessions }
+        self.closedLimit = closedLimit ?? { PreferencesStore.shared.prefs.closedSessionLimit }
     }
 
     // MARK: 启动
@@ -156,7 +158,7 @@ final class SessionStore {
         }
         // 已关闭的只留最新几条
         let dropped = Set(loaded.filter { $0.state == .ended }.sorted { $0.updatedAt > $1.updatedAt }
-            .dropFirst(Self.maxEnded).map(\.sessionId))
+            .dropFirst(closedLimit()).map(\.sessionId))
         for id in dropped {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(id).json"))
         }

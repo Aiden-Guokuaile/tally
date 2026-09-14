@@ -250,6 +250,11 @@ struct SystemSampler {
         return s
     }
 
+    /// 菜单栏小恐龙每 2 秒只要这三样。不读电池、磁盘、进程排行：那几样合起来几毫秒，常驻每 2 秒来一次划不来。
+    mutating func sampleLoad() -> (cpu: Double?, memory: (used: UInt64, total: UInt64)?, pressure: MemoryPressure?) {
+        (cpu(), Self.memory(), Self.sysctlInt32("kern.memorystatus_vm_pressure_level").flatMap(MemoryPressure.init(level:)))
+    }
+
     /// 遍历所有 pid 读 `ri_phys_footprint`，和活动监视器「内存」列同口径。几百个进程几毫秒。
     static func topProcesses(limit: Int) -> [ProcessMemory] {
         var pids = [pid_t](repeating: 0, count: 4096)

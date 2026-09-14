@@ -238,9 +238,16 @@ final class NotchController {
     private var closedAt = Date.distantPast
     /// 面板在光标脚下缩小之前的 frame：切到矮的页时光标会突然落在面板外，还在这块老区域里就不算离开。
     private var shrunkFrom: CGRect?
+    /// 点菜单栏小恐龙打开时，恐龙按钮到刘海正中这段菜单栏：光标从没进过面板，停在恐龙上或顺着菜单栏滑进面板都不算离开。
+    /// 和 `shrunkFrom` 分开存：切到系统页面板变矮时 `applyFrame` 会拿当时的 frame 覆盖掉 `shrunkFrom`。
+    private var openedFrom: CGRect?
     private var peekTimer: Timer?
     /// 被正挂着的高优先级提示挡住、等它收回再垂的那一条。
     private var pendingPeek: Peek?
+    /// 「全屏 app 时隐藏面板」开着、内建屏上有别的 app 在系统全屏时为 true：面板整个不上屏，展开、悬停、提示条都不出来。
+    private var hiddenForFullScreen = false
+    private var fullScreenObservers: [NSObjectProtocol] = []
+    private var fullScreenRecheck: DispatchWorkItem?
     private var outsideClickMonitor: Any?
     private var gestureMonitor: Any?
     private var keyMonitor: Any?
@@ -296,7 +303,25 @@ final class NotchController {
         }
         state.peekTapped = { [weak self] in self?.peekTapped() }
         BatteryWatcher.shared.onEvent = { [weak self] event in self?.showPeek(.battery(event)) }
-        ScreenshotWatcher.shared.onScreenshots = { [weak self] urls in self?.receiveFiles(urls) }
+        ScreenshotWatcher.shared.onScreenshots = { [weak self] urls in self?.receiveFiles(urls, kind: .screenshot) }
+        // 点菜单栏小恐龙：展开到「系统」页，不钉住，看完移开就收。恐龙离面板一百多 pt，光标根本不在面板上，
+        // 不给宽限的话第一次轮询就排收起、0.25 s 就收了，所以把恐龙到刘海这段菜单栏记成宽限区
+        StrideMonitor.shared.onClick = { [weak self] button in
+            guard let self else { return }
+            let grace = HoverGrace.menuBarStrip(button: button, notchMidX: self.panel.frame.midX)
+            if self.state.isOpen {
+                self.state.select(.system)
+                // 钉住的（⌥⇧T、--open）保持钉住；没钉住的补上宽限，并撤掉可能已经排上的收起
+                guard !self.state.isPinned else { return }
+                self.openedFrom = grace
+                self.closeTimer?.invalidate()
+                self.closeTimer = nil
+            } else {
+                self.state.page = .system
+                self.open()
+                if self.state.isOpen { self.openedFrom = grace }
+            }
+        }
         // 同一个版本只在刘海里说一次；设置「通用」那一行一直在
         UpdateChecker.shared.onNewVersion = { [weak self] release in
             guard PreferencesStore.shared.prefs.updateNotifiedVersion != release.version else { return }
@@ -332,16 +357,69 @@ final class NotchController {
         BatteryWatcher.shared.setEnabled(prefs.batteryPeek)
         PrivacyWatcher.shared.setEnabled(prefs.privacyDots)
         ShelfStore.shared.setEnabled(prefs.shelfEnabled)
+        ShelfStore.shared.retentionChanged()
         if !prefs.shelfEnabled, state.page == .shelf { state.select(.ai) }
         if !prefs.keepAwakeButton { KeepAwake.shared.stop() }
         UpdateChecker.shared.setEnabled(prefs.checkUpdates)
+        StrideMonitor.shared.apply(enabled: prefs.strideEnabled, showsValue: prefs.strideShowsValue)
         if prefs.shelfEnabled, prefs.screenshotsToShelf, let folder = prefs.screenshotFolder {
             ScreenshotWatcher.shared.start(folder: URL(fileURLWithPath: folder, isDirectory: true))
         } else {
             ScreenshotWatcher.shared.stop()
         }
-        // 集合行为对已经在屏幕上的窗口要重新上屏才生效；没有刘海屏时面板本来就不在屏上，不去叫它出来
-        if panel.setShowsInFullScreen(!prefs.hideInFullScreen), metrics != nil { panel.orderFrontRegardless() }
+        setFullScreenWatching(prefs.hideInFullScreen)
+    }
+
+    // MARK: 全屏 app 时隐藏
+
+    /// 开关开着才听切桌面、切 app；关掉就撤监听，藏着的面板放回来。
+    private func setFullScreenWatching(_ on: Bool) {
+        let watching = !fullScreenObservers.isEmpty
+        guard on != watching else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        if on {
+            fullScreenObservers = [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification].map { name in
+                center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    Task { @MainActor in self?.fullScreenMaybeChanged() }
+                }
+            }
+            fullScreenMaybeChanged()
+        } else {
+            fullScreenObservers.forEach { center.removeObserver($0) }
+            fullScreenObservers = []
+            fullScreenRecheck?.cancel()
+            fullScreenRecheck = nil
+            if hiddenForFullScreen {
+                hiddenForFullScreen = false
+                relayout()
+            }
+        }
+    }
+
+    /// 通知到的那一刻窗口列表还没换过来（实测滞后于切桌面通知），当场判一次、0.6 秒后再判一次。
+    private func fullScreenMaybeChanged() {
+        evaluateFullScreen()
+        fullScreenRecheck?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.evaluateFullScreen() }
+        }
+        fullScreenRecheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+    }
+
+    private func evaluateFullScreen() {
+        guard !fullScreenObservers.isEmpty, let screen = NotchGeometry.builtInNotchScreen() else { return }
+        let full = FullScreenDetector.current(on: screen)
+        guard full != hiddenForFullScreen else { return }
+        hiddenForFullScreen = full
+        if full {
+            // 用 orderOut 不用透明：透明的话追踪区和 ⌥⇧T 还能把它展开出来
+            close()
+            clearPeek()
+            panel.orderOut(nil)
+        } else {
+            relayout()
+        }
     }
 
     // MARK: 定位
@@ -356,13 +434,22 @@ final class NotchController {
             Log.debug("没有带刘海的内建屏，面板隐藏")
             return
         }
+        // 屏幕变了（合盖、开盖、接外接屏）也重判全屏，不沿用老结论：合盖期间那个 app 退出了全屏、之后又没有切桌面的通知，
+        // 沿用的话开盖后面板一直藏着，界面上什么都看不出来
+        if !fullScreenObservers.isEmpty { hiddenForFullScreen = FullScreenDetector.current(on: screen) }
         metrics = ScreenMetrics(screen: screen)
         if let metrics, let closed = NotchGeometry.closedSize(metrics) {
             state.notchWidth = closed.width
             state.notchHeight = closed.height
         }
+        if hiddenForFullScreen { close() }
         applyFrame(animated: false)
-        panel.orderFrontRegardless()
+        // 全屏隐藏期间只更新尺寸，不上屏：任何一次 orderFront 都会把面板放回全屏空间
+        if hiddenForFullScreen {
+            panel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
     }
 
     private func applyFrame(animated: Bool) {
@@ -404,6 +491,8 @@ final class NotchController {
         closeTimer = nil
         // 已经展开就什么都不做：悬停定时器晚 150 毫秒才触发，不能把 ⌥⇧T 刚钉住的面板改回不钉
         guard !state.isOpen else { return }
+        // 全屏隐藏期间 ⌥⇧T、拖文件都不展开：makeKeyAndOrderFront 会把面板放回全屏空间
+        guard !hiddenForFullScreen else { return }
         clearPeek()
         state.isPinned = pinned
         state.isOpen = true
@@ -430,6 +519,7 @@ final class NotchController {
         state.isOpen = false
         closedAt = Date()
         shrunkFrom = nil
+        openedFrom = nil
         hoverPoll?.invalidate()
         hoverPoll = nil
         removeOutsideClickMonitor()
@@ -452,6 +542,8 @@ final class NotchController {
     /// 连着来按 `PeekQueue` 排：比正挂着的高就换成新的并重新计时，一样高或更低的等它收回再垂。
     private func showPeek(_ peek: Peek) {
         guard !state.isOpen else { return }
+        // 全屏隐藏期间不垂提示条（提示音照响）；不然退出全屏时会冒出一条过时的
+        guard !hiddenForFullScreen else { return }
         // 没有刘海屏（合盖接外接屏）提示条画不出来：改发系统通知，不然会话提醒只剩一声响
         guard metrics != nil else {
             if PreferencesStore.shared.prefs.notifyWithoutNotch, peek.notifiesWithoutNotch { SystemNotifier.shared.post(peek) }
@@ -487,11 +579,11 @@ final class NotchController {
     }
 
     /// `open -a Tally <文件>`：照拖进来一样复制进文件架，闭合态弹一下说放了什么。
-    func receiveFiles(_ urls: [URL]) {
+    func receiveFiles(_ urls: [URL], kind: ShelfKind = .file) {
         let enabled = PreferencesStore.shared.prefs.shelfEnabled
         showPeek(.shelf(names: urls.map(\.lastPathComponent), enabled: enabled))
         guard enabled else { return }
-        Task { await ShelfStore.shared.add(urls: urls) }
+        Task { await ShelfStore.shared.add(urls: urls, kind: kind) }
     }
 
     /// 会话提示：那个会话的终端标签就在前台时不响也不弹（人正看着它）；不然按设置响一声，再垂提示条。
@@ -583,8 +675,9 @@ final class NotchController {
                 guard let self, self.state.isOpen, !self.state.isPinned else { return }
                 let dragging = NSEvent.pressedMouseButtons & 1 != 0
                 let mouse = NSEvent.mouseLocation
-                let verdict = HoverGrace.judge(mouse: mouse, frame: self.panel.frame, shrunkFrom: self.shrunkFrom)
+                let verdict = HoverGrace.judge(mouse: mouse, frame: self.panel.frame, shrunkFrom: self.shrunkFrom, openedFrom: self.openedFrom)
                 self.shrunkFrom = verdict.keepGrace ? self.shrunkFrom : nil
+                self.openedFrom = verdict.keepOpenedFrom ? self.openedFrom : nil
                 if dragging || verdict.inside {
                     self.closeTimer?.invalidate()
                     self.closeTimer = nil
@@ -651,14 +744,14 @@ final class NotchController {
 
     // MARK: 面板展开时的键盘
 
-    /// 面板是 key window 但 app 不激活，主菜单的 ⌘, 收不到；展开期间自己接，顺带接数字键切页签、⌘1–⌘5 跳会话。
+    /// 面板是 key window 但 app 不激活，主菜单的 ⌘, 收不到；展开期间自己接，顺带接数字键切页签、⌘1–⌘9 / ⌘0 跳会话。
     private func installKeyMonitor() {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
             guard let self, event.window === self.panel else { return event }
             let prefs = PreferencesStore.shared.prefs
             if event.type == .flagsChanged {
-                // 按住 ⌘ 时会话行尾浮出 ⌘1–⌘5，松开消失；修饰键事件原样放行
+                // 按住 ⌘ 时会话行尾浮出 ⌘1–⌘9 / ⌘0，松开消失；修饰键事件原样放行
                 SessionJump.shared.shortcutHints = prefs.sessionCommandKeys
                     && event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command
                 return event
@@ -680,11 +773,11 @@ final class NotchController {
         }
     }
 
-    /// ⌘1–⌘5：跳到会话列表第 N 行的终端，和点那一行一样：面板照旧开着、鼠标移出才收（终端被叫到前台，键盘跟着过去）。
+    /// ⌘1–⌘9 / ⌘0：跳到会话列表第 N 行的终端，和点那一行一样：面板照旧开着、鼠标移出才收（终端被叫到前台，键盘跟着过去）。
     /// 跳不成就切到 AI 页，那一行红字说为什么——从别的页按的话，不切过去看不到原因。
     private func jumpToSession(at index: Int) {
-        // 按分组后的显示顺序数，和行尾的 ⌘N 编号一致
-        let sessions = SessionRecord.displayOrder(SessionStore.shared.sessions, now: Date())
+        // 按分组后的显示顺序数、不数已关闭的，和行尾的 ⌘N 编号一致
+        let sessions = SessionRecord.shortcutOrder(SessionStore.shared.sessions, now: Date())
         guard sessions.indices.contains(index) else { return }
         let session = sessions[index]
         Task { [weak self] in
@@ -749,29 +842,49 @@ enum PanelKey {
     /// 主键盘数字行 1…9（`kVK_ANSI_1`…`kVK_ANSI_9`，键码不连号）。
     static let digitKeyCodes: [UInt16] = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
                                           kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9].map { UInt16($0) }
-    /// ⌘ 跳会话只认 ⌘1–⌘5。
-    static let sessionKeyCount = 5
+    /// ⌘0 当第 10 个会话，和浏览器里 ⌘1…⌘9 数标签页的习惯接得上。
+    static let zeroKeyCode = UInt16(kVK_ANSI_0)
+    /// ⌘ 跳会话认 ⌘1–⌘9 和 ⌘0。原来只到 ⌘5，第 6 个会话起就没有键了。
+    static let sessionKeyCount = 10
 
     /// 修饰键只看 ⌘ ⌥ ⌃ ⇧：大写锁、小键盘、fn 不算按了修饰键。
     static func action(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, pageKeys: Bool, sessionKeys: Bool) -> Action? {
         let mods = modifiers.intersection([.command, .option, .control, .shift])
         if keyCode == UInt16(kVK_ANSI_Comma), mods == .command { return .settings }
+        // 单按 0 不归面板：页签没有第 10 个
+        if keyCode == zeroKeyCode { return mods == .command && sessionKeys ? .session(9) : nil }
         guard let index = digitKeyCodes.firstIndex(of: keyCode) else { return nil }
         if mods.isEmpty, pageKeys { return .page(index) }
-        if mods == .command, sessionKeys, index < sessionKeyCount { return .session(index) }
+        if mods == .command, sessionKeys { return .session(index) }
         return nil
+    }
+
+    /// 按住 ⌘ 时第 N 行（从 0 数）行尾浮出的编号：前九个是 ⌘1…⌘9，第 10 个是 ⌘0，再往后没有键。
+    static func sessionShortcutLabel(_ index: Int) -> String? {
+        switch index {
+        case 0..<9: return "⌘\(index + 1)"
+        case 9: return "⌘0"
+        default: return nil
+        }
     }
 }
 
-/// 面板缩小后光标算不算还在面板上：在当前 frame 里当然算（宽限结束）；不在但还在缩小前的老区域里也算（宽限继续）；
-/// 老区域也不在了才是真离开。纯函数，切矮页时面板从脚下缩走不该把人赶出去。
+/// 光标算不算还在面板上：在当前 frame 里当然算（宽限都结束）；不在但还在宽限区里也算（那块宽限继续）；宽限区也不在了才是真离开。
+/// 两块宽限：面板缩小前的老区域（切矮页时面板从脚下缩走不该把人赶出去），和点菜单栏小恐龙打开时恐龙到刘海那段菜单栏（光标从没进过面板）。纯函数。
 enum HoverGrace {
     /// 用 AppKit 的 `NSMouseInRect`（非翻转坐标：顶边算里面、底边算外面），和追踪区同一套规则；不用 `CGRect.contains`，
     /// 它不含顶边——面板顶边就是屏幕顶边，光标甩到刘海上会被卡在最顶那一行，追踪区说进来了、轮询却说在外面，开了又收。
-    static func judge(mouse: CGPoint, frame: CGRect, shrunkFrom: CGRect?) -> (inside: Bool, keepGrace: Bool) {
-        if NSMouseInRect(mouse, frame, false) { return (true, false) }
-        if let shrunkFrom, NSMouseInRect(mouse, shrunkFrom, false) { return (true, true) }
-        return (false, false)
+    static func judge(mouse: CGPoint, frame: CGRect, shrunkFrom: CGRect?, openedFrom: CGRect? = nil) -> (inside: Bool, keepGrace: Bool, keepOpenedFrom: Bool) {
+        if NSMouseInRect(mouse, frame, false) { return (true, false, false) }
+        let inShrunk = shrunkFrom.map { NSMouseInRect(mouse, $0, false) } ?? false
+        let inOpened = openedFrom.map { NSMouseInRect(mouse, $0, false) } ?? false
+        return (inShrunk || inOpened, inShrunk, inOpened)
+    }
+
+    /// 点恐龙打开时的宽限区：恐龙按钮加上它到刘海正中这段菜单栏，高度就是按钮那一条，光标顺着菜单栏滑进面板不断档。
+    static func menuBarStrip(button: CGRect, notchMidX: CGFloat) -> CGRect {
+        let minX = min(notchMidX, button.minX), maxX = max(notchMidX, button.maxX)
+        return CGRect(x: minX, y: button.minY, width: maxX - minX, height: button.height)
     }
 }
 

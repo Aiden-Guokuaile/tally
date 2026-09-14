@@ -4,37 +4,14 @@ import SwiftUI
 /// 帮助：顶上是「关于」，下面只留 hook 的装与卸——面板怎么用、数据从哪来在界面上一看就知道，写在这里没人读。
 struct HelpPage: View {
 
-    /// Unicode Braille cells keep the approved SD Gundam silhouette aligned.
-    private static let gundam = """
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀
-    ⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢤⡢⠋
-    ⠀⠀⠙⢔⠄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠖⠉⠀⠀⠀⣴⣾⣿⣷⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠠⠐⣈⡴⠋
-    ⠀⠀⠀⠀⠳⣌⠐⠄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡇⣰⣶⣶⣶⡆⢸⣿⣿⣿⣿⣿⡄⠀⠀⠀⢀⡠⠔⠊⢀⣠⠞⠁
-    ⠀⠀⠀⠀⠀⠈⢳⣄⠈⠑⠤⡀⠀⠀⠀⠀⠀⠀⣸⠀⣿⣿⣿⣿⣧⠈⣿⣿⣿⣟⡻⠿⡄⠄⠂⠁⠀⢀⣴⠟⠁
-    ⠀⠀⠀⠀⠀⠀⠀⠙⢷⣄⠀⠀⠑⠢⣀⡠⠖⠋⡏⢰⡿⠿⠿⠿⢿⠀⢻⣿⣿⠥⠒⠉⠀⠀⠀⣠⣾⠟⠁
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣧⡀⠀⠀⠀⠙⠢⢴⣷⠋⠉⠉⠉⢹⣦⡡⠞⠋⠀⠀⠀⠀⢀⣴⣾⣿⣷⡄
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢻⣦⡀⠀⠀⠀⢠⠇⠀⠀⠀⠀⢸⡿⠀⠀⠀⠀⠀⣀⣴⣿⣿⣿⣿⣿⣿⣆
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⣎⠻⣦⡀⠀⡞⠀⠀⠀⠀⠀⢸⣇⠀⠀⠀⣠⣾⣿⣿⣿⢳⣿⡞⣿⣿⣿⡆
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣼⠘⠃⡠⠘⠻⣆⡇⠀⠀⠀⠀⢠⣿⣿⣀⣴⠾⠋⠉⠙⠻⢿⣯⣿⣵⣿⣿⣿⡿⠲⢄⡀
-    ⠀⠀⠀⠀⠀⠀⠀⢠⠎⠀⡇⠠⠀⠀⠀⠀⠈⠣⣀⠀⠀⢠⣿⣿⠿⠋⠀⠀⠀⠀⠀⠀⠀⠙⠻⣿⠿⠛⠁⠀⢀⣴⣷
-    ⠀⠀⠀⠀⠀⠀⠀⡞⢰⣾⡇⢰⣦⣄⣀⠀⠀⠀⠈⠓⢤⠿⠋⠁⠀⠀⠀⠀⢀⣀⣠⣤⣴⣶⣾⠀⠀⣿⣿⣿⢹⣿⣿⡆
-    ⠀⠀⠀⠀⠀⠀⠀⡇⡟⠿⡇⢸⡟⣿⡇⠉⠙⠒⢶⣤⣤⣤⣤⣶⣶⡶⠛⠋⠉⠁⠀⢸⣿⣿⢹⠀⠀⠿⠿⢻⠀⣿⣿⡇
-    ⠀⠀⠀⠀⠀⠀⠀⡇⣿⣿⣇⠘⡇⣿⣧⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⣼⣿⣿⠸⠀⢠⣿⣿⣿⠀⣿⣿⡇
-    ⠀⠀⠀⠀⠀⠀⠀⡇⢨⣍⣻⠀⠹⣜⡿⣷⣤⣤⣾⠿⠟⠛⠻⠿⣿⣿⣦⣤⣤⣴⣾⣿⡿⠟⠁⠀⠸⠛⣛⡋⢸⣿⣿⠇
-    ⠀⠀⠀⠀⠀⠀⠀⢸⠘⣿⣿⡀⠀⠈⢻⡎⠙⠉⠀⠀⠒⠓⠢⠄⠀⠈⠉⠛⠋⢩⡞⠉⠀⠀⣤⣶⣿⣿⣿⠇⣸⣿⡟
-    ⠀⠀⢀⣀⣀⣀⡀⠀⠑⠢⣉⡇⠀⠀⢸⣧⠀⠀⠀⠀⠉⠉⠑⠂⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⡿⠟⠛⢋⣡⣴⠟⠋⠀⠀⠀⢀⣀⣀⣀
-    ⠀⣰⠉⠀⠉⠙⠻⢿⣶⣦⣤⣙⢄⠀⠘⣿⡀⠀⠀⠀⣾⣿⣷⡄⠀⠀⠀⠀⠀⣿⡇⠀⠀⠀⣠⣴⠿⣿⣿⣦⡤⠴⠒⠚⠉⠉⠀⣰⣿⣿⡆
-    ⠀⣿⠀⠀⠀⠀⠀⠀⠈⢹⣿⣿⣿⣿⡂⢟⣉⣷⣤⣰⢹⣿⢹⣿⡄⣀⣠⣴⣿⣿⣧⣴⣶⣿⣿⣶⣶⡟⠉⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣷
-    ⢰⣿⠀⠀⠀⠀⠀⠀⠀⢨⣿⣿⣿⠿⠿⢿⣿⢻⣿⣿⣾⣿⣾⣿⣿⣿⣿⣿⣿⣷⢸⡿⢿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⣿⣿
-    ⠈⣿⣄⠀⠀⠀⠀⠀⠀⣼⡿⣵⣶⣶⣶⣶⣌⠻⡇⠀⠀⠀⠀⠀⠀⢀⡾⠟⣫⣵⣷⣶⣶⣶⣶⢶⣿⠀⠀⠀⠀⠀⠀⠀⠀⣠⣿⣿⣿⣿⡿
-    ⠀⠈⢿⣧⡀⠀⠀⠀⢠⡿⣹⣿⣿⣿⣿⣿⣿⣆⣁⣀⣀⣀⣒⣒⣐⣩⣴⣿⣿⣿⣿⣿⣿⡿⢣⣿⣿⡆⠀⠀⠀⠀⠀⣰⣿⣿⣿⣿⣿⡟⠁
-    ⠀⠀⠀⢙⣷⡀⠀⠀⢸⠁⣉⣙⣛⠛⠛⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠛⠛⠛⠛⠛⡛⠁⣾⣿⣿⣧⠀⠀⠀⠀⣰⣿⣿⣿⣿⠛⠋
-    ⠀⠀⠀⣸⣿⣿⣷⣦⣿⡇⢯⣭⣉⣉⣙⣃⡼⣟⣛⣛⣛⣛⣻⣿⣿⡆⣟⣛⣛⣉⣉⣉⣉⠀⣿⣿⣿⣿⣷⣤⣴⣾⣿⣿⣿⡽⣿⡀
-    ⠀⠀⠀⠻⣿⣿⣿⣿⣿⣹⡘⠶⠶⠶⠤⣭⢠⢻⣿⣿⣿⣿⣿⢹⣿⡇⢩⣭⣭⡤⠤⠶⠶⠀⣿⣿⣿⣿⡿⠁⠸⣿⣿⣿⣿⣷⠻⠇
-    ⠀⠀⠀⠀⠀⠙⠻⢿⡿⠁⠙⠻⣷⣶⣶⣶⣾⡜⣿⣿⣿⣿⣿⡾⣿⣿⣶⣶⣶⣶⣶⣶⣶⣾⣿⣿⡿⠟⠁⠀⠀⢻⣿⠿⠛⠁
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣿⣿⣿⣿⣷⢻⣿⣿⣿⣿⣧⣿⣿⣿⣿⣿⣿⣿⡿⣰⣿⣿⡟⠀⠀⠀⠀⠀⠈
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠛⠛⠛⠛⠛⠛⠿⠿⠿⠿⠛⠛⠛⠛⠛⠛⠃⠛⠛⠉
-    """
+    /// 关于页的喜狮图：黑白线稿去掉白底存成透明 PNG（`Resources/about/mascot.png`，由同目录的 make-mascot.swift 生成），
+    /// 按模板图着色，深浅色模式都跟着文字色走。读不到（`swift run`、测试）就不画。
+    private static let mascot: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "mascot", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
+    }()
 
     private struct Section: Identifiable {
         let id: String
@@ -82,14 +59,17 @@ struct HelpPage: View {
             Text("版本 \(Self.version)")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-            Text(verbatim: Self.gundam)
-                .font(.custom("Menlo", fixedSize: 9))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.leading)
-                .fixedSize()
-                .accessibilityLabel("Q 版高达半身字符画")
-                .padding(.vertical, 8)
-            Text("高达护航 · 用量有数")
+            if let mascot = Self.mascot {
+                Image(nsImage: mascot)
+                    .resizable()
+                    .interpolation(.high)
+                    .renderingMode(.template)
+                    .foregroundStyle(.primary)
+                    .frame(width: 160, height: 160)
+                    .accessibilityLabel("喜狮图案")
+                    .padding(.vertical, 8)
+            }
+            Text("喜狮护航 · 用量有数")
                 .font(.system(size: 12, weight: .medium))
             Text("本应用由「Aiden-Guokuaile」个人开发并所有")
                 .font(.system(size: 13, weight: .medium))

@@ -136,18 +136,31 @@ struct PanelSettings: View {
             }
             Section {
                 Toggle("数字键 1–9 切到第 N 个页签", isOn: preferenceToggle(\.pageNumberKeys))
-                Toggle("⌘1–⌘5 跳到第 N 个会话的终端", isOn: preferenceToggle(\.sessionCommandKeys))
+                Toggle("⌘1–⌘9、⌘0 跳到第 N 个会话的终端", isOn: preferenceToggle(\.sessionCommandKeys))
             } header: {
                 Text("键盘")
             } footer: {
-                Text("只在面板展开时有效：展开时键盘归面板，收起后数字和 ⌘N 照常打进原来的 app。会话按 AI 页列表的显示顺序数（「等你」那组排最前），按住 ⌘ 时前五行行尾会显示编号；跳过去和点那一行一样，接着打字进的就是那个终端，面板等鼠标移出再收。")
+                Text("只在面板展开时有效：展开时键盘归面板，收起后数字和 ⌘N 照常打进原来的 app。会话按 AI 页列表的显示顺序数（「等你」那组排最前，已关闭的不数），按住 ⌘ 时前十行行尾会显示编号（第 10 个是 ⌘0）；跳过去和点那一行一样，接着打字进的就是那个终端，面板等鼠标移出再收。")
             }
             Section {
                 Toggle("保留已关闭的会话", isOn: preferenceToggle(\.keepClosedSessions))
+                HStack {
+                    Text("最多留")
+                    Spacer()
+                    TextField("", value: Binding(
+                        get: { PreferencesStore.shared.prefs.closedSessionLimit },
+                        set: { PreferencesStore.shared.prefs.closedSessionLimit = Preferences.closedLimit($0) }
+                    ), format: .number)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 44)
+                    Text("条")
+                        .foregroundStyle(.secondary)
+                }
+                .disabled(!PreferencesStore.shared.prefs.keepClosedSessions)
             } header: {
                 Text("会话列表")
             } footer: {
-                Text("会话结束或终端关掉后，在 AI 页「最近」里留一行「已关闭」，点它或按对应的 ⌘N 在新终端里接着聊（claude --resume / codex resume）。只留在终端里开的交互会话，claude -p、codex exec 这类脚本跑的不留；最多留最新 5 条。关掉后已有的在下一次刷新列表时清掉。")
+                Text("会话结束或终端关掉后，在 AI 页会话卡片的「已关闭」那一页留一行（卡片标题行右边点「已关闭 N ›」翻过去），点行尾「接着聊」在新终端里接着聊；点行本身没有动作，⌘N 也不数它，免得误触开出新终端（claude --resume / codex resume）。只留在终端里开的交互会话，claude -p、codex exec 这类脚本跑的不留；最多留上面设的条数（默认 10，1 到 50），多出来的删最旧的。关掉后已有的在下一次刷新列表时清掉。")
             }
             Section {
                 // 这一条才是真开关：原来这一节只有「屏幕也常亮」，它只挑模式不启动，勾了以为开了、屏幕照黑
@@ -194,6 +207,15 @@ struct PanelSettings: View {
                 Text("保持唤醒")
             } footer: {
                 Text("就是 caffeinate 的按钮版：Mac 几分钟没人碰会休眠，休眠后 agent 任务全停。开着就不休眠（等于 caffeinate -i，勾了「屏幕也常亮」等于 -d）。标题行那颗杯子点一下开 / 关、右键选时长；开着时杯子实心橙色。状态会记住：装新版本、重启 Tally 之后自动接回来。\n\n「合盖也不休眠」是另一回事：电源断言只挡闲置休眠，合盖走的是更低一层的 clamshell 休眠，任何断言都拦不住，所以它动的是系统级的开关，开一次要管理员密码。合盖后机器继续跑，注意散热；关掉、到期、退出 Tally 都会自动恢复，不用再输密码。自定义时长在系统页那张卡片上设。\n\n「合盖也不休眠」要一条免密规则：第一次开的时候往 /etc/sudoers.d/tally 装一条，只放行 pmset 那两条命令和「删掉这条规则自己」，输一次密码，以后跨重启、跨重装都不再问。取消这里的勾选就把规则删掉（不用再输密码），合盖不休眠也跟着关掉。\n\n开着的时候合盖，机器继续跑、屏幕也不会锁——锁屏是跟着休眠触发的，不睡就没有锁的时机。要带着走先按 ⌃⌘Q 锁一下再合盖，锁屏不影响 agent 继续跑。")
+            }
+            Section {
+                Toggle("菜单栏小恐龙", isOn: preferenceToggle(\.strideEnabled))
+                Toggle("旁边显示内存百分比", isOn: preferenceToggle(\.strideShowsValue))
+                    .disabled(!PreferencesStore.shared.prefs.strideEnabled)
+            } header: {
+                Text("菜单栏小恐龙")
+            } footer: {
+                Text("菜单栏放一只小霸王龙和一颗窝里的蛋。恐龙跟着 CPU：10% / 30% / 60% 以上分别是跑步、冲刺、生气，更低是睡觉。蛋按内存已用从下往上填，70% 起变橙、恐龙也冲刺，85% 起变红裂开、恐龙生气；内存压力到「偏紧」也生气。越忙跑得越快，屏幕睡了就停。点它展开面板到「系统」页。刘海屏的菜单栏放不下时图标会被刘海挡住，可以在系统设置的「菜单栏」里关掉几个不常用的。")
             }
             Section {
                 Toggle("截屏和共享屏幕时隐藏面板", isOn: preferenceToggle(\.hideFromCapture))
@@ -279,13 +301,16 @@ struct ShelfSettings: View {
     var store = ShelfStore.shared
     var preferences = PreferencesStore.shared
     var screenshots = ScreenshotWatcher.shared
+    var finder = ScreenshotFolderFinder.shared
+    @State private var typedFolder = ""
+    @State private var typedFolderError: String?
 
     var body: some View {
         Form {
             Section {
                 Toggle("「文件架」页", isOn: preferenceToggle(\.shelfEnabled))
             } footer: {
-                Text("把文件拖到刘海上就展开到文件架并暂存一份副本；从文件架拖出去、AirDrop、右键打开。副本保留 3 天后自动清理。关掉后不接拖放、不占内存，已暂存的文件留在磁盘上。脚本里 open -a Tally <文件> 也能放进来。")
+                Text("把文件拖到刘海上就展开到文件架并暂存一份副本；从文件架拖出去、AirDrop、右键打开。副本到了保留时间自动清理（下面分文件、截图设）。关掉后不接拖放、不占内存，已暂存的文件留在磁盘上。脚本里 open -a Tally <文件> 也能放进来。")
             }
             Section {
                 Toggle("新截图自动放进文件架", isOn: screenshotsBinding)
@@ -302,11 +327,66 @@ struct ShelfSettings: View {
                         Button("换一个") { chooseScreenshotFolder() }
                     }
                 }
+                if preferences.prefs.shelfEnabled {
+                    HStack {
+                        Button(finder.status == .waiting ? "不找了" : "截一张图找文件夹") {
+                            if finder.status == .waiting { finder.stop() } else { finder.start() }
+                        }
+                        Text(finderHint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    if case .found(let folder, let file) = finder.status {
+                        HStack {
+                            Text("找到：\(folder.path)（刚存进去的 \(file)）")
+                                .font(.caption)
+                                .lineLimit(2)
+                                .truncationMode(.middle)
+                                .textSelection(.enabled)
+                            Spacer()
+                            Button("用这个") {
+                                useScreenshotFolder(folder)
+                                finder.stop()
+                            }
+                        }
+                    }
+                    HStack {
+                        TextField("或粘贴文件夹路径", text: $typedFolder)
+                        Button("使用") {
+                            if let url = ScreenshotWatcher.folder(fromTyped: typedFolder) {
+                                typedFolderError = nil
+                                useScreenshotFolder(url)
+                            } else {
+                                typedFolderError = "不是一个存在的文件夹：\(typedFolder)"
+                            }
+                        }
+                        .disabled(typedFolder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if let typedFolderError {
+                        Text(typedFolderError).foregroundStyle(.red).font(.caption)
+                    }
+                }
                 if let problem = screenshots.problem {
                     Text(problem).foregroundStyle(.red).font(.caption)
                 }
+                if preferences.prefs.screenshotsToShelf, let folder = preferences.prefs.screenshotFolder,
+                   ScreenshotWatcher.isSystemLocation(URL(fileURLWithPath: folder, isDirectory: true)),
+                   ScreenshotWatcher.systemShortcutsDisabledNow {
+                    Text("系统截图快捷键（⌘⇧3 / ⌘⇧4 / ⌘⇧5）都关着，这个文件夹不会有新截图：用别的截图工具的话，点「换一个」选它保存截图的文件夹。")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
             } footer: {
-                Text("截图（⌘⇧3 / ⌘⇧4 / ⌘⇧5）一落进截图文件夹就复制一份到文件架，好直接拖进 Claude Code / Codex。认的是系统写在截图文件上的标记，不看文件名；只收打开之后的新截图。打开时要在选择面板里点一下截图文件夹（系统默认是桌面）：桌面受隐私保护，点过这一下 Tally 才读得到它，不会再弹别的框。")
+                Text("截图一落进截图文件夹就复制一份到文件架，好直接拖进 Claude Code / Codex。只收打开之后的新截图。\n\n选的是系统截图位置（默认桌面）时，认系统写在截图文件上的标记，桌面上别的图片不会被收进来；选的是 Lens、Shottr 这类截图工具自己的保存文件夹时，里面新出现的图片都算。不知道截图工具把图存在哪（有的藏在 /var/folders 下的临时目录，选择面板点不进去）：点「截一张图找文件夹」，再用平时的截图工具截一张，Tally 看新图片落在哪个文件夹，你确认了才用；也可以把路径粘贴进输入框点「使用」。\n\n桌面受隐私保护：打开时在选择面板里点一下文件夹，Tally 才读得到它，不会再弹别的框。")
+            }
+            Section {
+                RetentionRow(title: "拖进来的文件保留", key: \.shelfFileRetentionMinutes)
+                RetentionRow(title: "截图保留", key: \.shelfScreenshotRetentionMinutes)
+            } header: {
+                Text("保留多久")
+            } footer: {
+                Text("到点就删架上那份副本，来源文件不动。截图指「新截图自动放进文件架」收进来的；拖进来的、open -a Tally 放进来的算文件，以前放进来的也按文件算。1 分钟到 30 天。")
             }
             Section {
                 HStack {
@@ -327,6 +407,24 @@ struct ShelfSettings: View {
                 }
             }
         }
+    }
+
+    /// 「截一张图找文件夹」按钮旁边那句话。
+    private var finderHint: String {
+        switch finder.status {
+        case .idle: return "不知道截图工具把图存在哪，点它，再用平时的截图工具截一张"
+        case .waiting: return "现在去截一张图，\(Int(ScreenshotFolderFinder.timeout)) 秒内有效"
+        case .found: return "看看下面找到的对不对"
+        case .timedOut: return "没看到新图片：这个截图工具可能只放剪贴板、不存文件"
+        case .failed: return "盯不了文件变化，把路径粘贴进下面的输入框吧"
+        }
+    }
+
+    /// 定下截图文件夹并打开功能：「截一张图找文件夹」和粘贴路径都走这里。
+    private func useScreenshotFolder(_ url: URL) {
+        preferences.prefs.screenshotFolder = url.path
+        preferences.prefs.screenshotsToShelf = true
+        typedFolder = ""
     }
 
     /// 打开时还没选过文件夹就先选；选择面板点了取消就不开。
@@ -353,6 +451,43 @@ struct ShelfSettings: View {
         guard NotchPanel.steppingAside({ panel.runModal() }) == .OK, let url = panel.url else { return false }
         preferences.prefs.screenshotFolder = url.path
         return true
+    }
+}
+
+/// 保留多久的一行：数值 + 单位（分钟 / 小时 / 天），存的是分钟。
+struct RetentionRow: View {
+    let title: String
+    let key: WritableKeyPath<Preferences, Int>
+    @State private var amount = 1
+    @State private var unit = RetentionFormat.Unit.minutes
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("", value: $amount, format: .number)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 50)
+            Picker("", selection: $unit) {
+                ForEach(RetentionFormat.Unit.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .labelsHidden()
+            .frame(width: 80)
+        }
+        .onAppear {
+            let split = RetentionFormat.split(PreferencesStore.shared.prefs[keyPath: key])
+            amount = split.amount
+            unit = split.unit
+        }
+        .onChange(of: amount) { save() }
+        .onChange(of: unit) { save() }
+    }
+
+    /// 数值先夹一下再乘单位，乱填个大数也不会溢出。
+    private func save() {
+        let minutes = Preferences.retentionMinutes(min(max(amount, 1), 30 * 1440) * unit.rawValue)
+        guard minutes != PreferencesStore.shared.prefs[keyPath: key] else { return }
+        PreferencesStore.shared.prefs[keyPath: key] = minutes
     }
 }
 

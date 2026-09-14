@@ -1,34 +1,38 @@
 import SwiftUI
 
-/// 会话列表页：分「等你 / 在跑 / 最近」三组，一行一个会话，点行跳回它的终端（已关闭的是接着聊）。
+/// 会话列表：分「等你 / 在跑 / 最近」三组，一行一个会话，点行跳回它的终端。
+/// 已关闭的在会话卡片的另一页（`showingClosed`）：只列已关闭的，点行尾「接着聊」才开新终端。
 struct SessionsPage: View {
     var store = SessionStore.shared
     var jump = SessionJump.shared
+    /// 翻到「已关闭」那一页：由 AI 页会话卡片标题行的切换按钮决定。
+    var showingClosed = false
 
     var body: some View {
-        if store.sessions.isEmpty {
+        let now = Date()
+        let rows = showingClosed
+            ? SessionRecord.displayOrder(store.sessions, now: now).filter { $0.state == .ended }
+            : SessionRecord.shortcutOrder(store.sessions, now: now)
+        if rows.isEmpty {
             VStack(spacing: 6) {
-                Image(systemName: "terminal")
+                Image(systemName: showingClosed ? "clock.arrow.circlepath" : "terminal")
                     .font(.system(size: 22))
                     .foregroundStyle(.white.opacity(0.3))
-                Text("没有在跑的会话")
+                Text(showingClosed ? "没有已关闭的会话" : "没有在跑的会话")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.5))
             }
             .frame(maxWidth: .infinity, minHeight: 72, maxHeight: .infinity)
         } else {
-            let now = Date()
-            let ordered = SessionRecord.displayOrder(store.sessions, now: now)
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(ordered.enumerated()), id: \.element.id) { index, session in
-                        let group = session.group(now: now)
-                        if index == 0 || ordered[index - 1].group(now: now) != group {
-                            GroupHeader(group: group, first: index == 0)
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, session in
+                        if !showingClosed, index == 0 || rows[index - 1].group(now: now) != session.group(now: now) {
+                            GroupHeader(group: session.group(now: now), first: index == 0)
                         }
-                        // ⌘N 按显示顺序数，所以编号就是行号
+                        // ⌘N 按没关闭的会话的显示顺序数，所以编号就是行号；已关闭那一页没有键
                         SessionRow(session: session, now: now,
-                                   shortcut: jump.shortcutHints && index < PanelKey.sessionKeyCount ? index + 1 : nil)
+                                   shortcut: !showingClosed && jump.shortcutHints ? PanelKey.sessionShortcutLabel(index) : nil)
                     }
                 }
             }
@@ -54,6 +58,7 @@ private struct GroupHeader: View {
         case .waiting: return "等你"
         case .working: return "在跑"
         case .recent: return "最近"
+        case .closed: return "已关闭"
         }
     }
 }
@@ -61,8 +66,8 @@ private struct GroupHeader: View {
 struct SessionRow: View {
     let session: SessionRecord
     let now: Date
-    /// 按住 ⌘ 时行尾显示的编号（1–5），nil 不显示。
-    let shortcut: Int?
+    /// 按住 ⌘ 时行尾显示的编号（⌘1…⌘9、⌘0），nil 不显示。
+    let shortcut: String?
     var jump = SessionJump.shared
     @State private var hovered = false
 
@@ -74,9 +79,22 @@ struct SessionRow: View {
     }()
 
     var body: some View {
-        let stale = session.isStale(now: now)
-        let ended = session.state == .ended
-        Button(action: focus) {
+        if session.state == .ended {
+            // 已关闭的行本身不可点：点下去会开新终端，只认行尾那颗「接着聊」
+            content(stale: false, ended: true)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.05)))
+        } else {
+            Button(action: focus) {
+                content(stale: session.isStale(now: now), ended: false)
+            }
+            .buttonStyle(.plain)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(hovered ? 0.10 : 0.05)))
+            .onHover { hovered = $0 }
+            .animation(.smooth(duration: 0.2), value: hovered)
+        }
+    }
+
+    private func content(stale: Bool, ended: Bool) -> some View {
             HStack(spacing: 8) {
                 StateIcon(state: session.state, stale: stale)
                 VStack(alignment: .leading, spacing: 1) {
@@ -102,7 +120,7 @@ struct SessionRow: View {
                         Text(Self.relative.localizedString(for: session.updatedDate, relativeTo: now))
                         if stale { Text("失联") }
                         if session.state == .compacting { Text("压缩上下文中") }
-                        if ended { Text("已关闭 · 点一下接着聊") }
+                        if ended { Text("已关闭") }
                     }
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
@@ -116,22 +134,29 @@ struct SessionRow: View {
                         .lineLimit(1)
                 }
                 if let shortcut {
-                    Text("⌘\(shortcut)")
+                    Text(shortcut)
                         .font(.system(size: 10, weight: .semibold).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.65))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
                         .background(RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.12)))
                 }
+                if ended {
+                    Button(action: focus) {
+                        Text("接着聊")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(.white.opacity(0.14)))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(.vertical, 4)
             .padding(.horizontal, 6)
             .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(hovered ? 0.10 : 0.05)))
-        .onHover { hovered = $0 }
-        .animation(.smooth(duration: 0.2), value: hovered)
     }
 
     private func focus() {
@@ -140,7 +165,7 @@ struct SessionRow: View {
     }
 }
 
-/// 跳回会话的终端（已关闭的会话是在新终端里接着聊）。点会话行和 ⌘1–⌘5 共用；失败的那句话按会话记在这儿，行里红字显示——
+/// 跳回会话的终端（已关闭的会话是在新终端里接着聊）。点会话行和 ⌘1–⌘9 / ⌘0 共用；失败的那句话按会话记在这儿，行里红字显示——
 /// 记在行自己的 @State 里的话，⌘N 跳失败时面板里那一行根本不知道。
 @MainActor
 @Observable
@@ -149,7 +174,7 @@ final class SessionJump {
 
     /// session_id → 上次跳失败的原因；跳成功就清掉。
     private(set) var failures: [String: String] = [:]
-    /// 按住 ⌘ 时为真：前五行行尾显示 ⌘1–⌘5。面板的键盘监视器写。
+    /// 按住 ⌘ 时为真：前十行行尾显示 ⌘1…⌘9、⌘0。面板的键盘监视器写。
     var shortcutHints = false
 
     /// 返回跳没跳成。

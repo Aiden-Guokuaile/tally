@@ -142,7 +142,9 @@ struct PageTitle: View {
         case .apps:
             return PageSummary.apps(total: apps.apps.count, hidden: apps.apps.filter(\.isHidden).count)
         case .shelf:
-            return PageSummary.shelf(count: shelf.items.count)
+            let prefs = PreferencesStore.shared.prefs
+            return PageSummary.shelf(count: shelf.items.count, fileMinutes: prefs.shelfFileRetentionMinutes,
+                                     screenshotMinutes: prefs.shelfScreenshotRetentionMinutes)
         }
     }
 }
@@ -173,8 +175,9 @@ enum PageSummary {
         return hidden > 0 ? "\(total) 个在跑 · \(hidden) 个 Dock 里看不见" : "\(total) 个在跑"
     }
 
-    static func shelf(count: Int) -> String {
-        count > 0 ? "\(count) 项 · 保留 3 天" : "拖文件到刘海上暂存"
+    static func shelf(count: Int, fileMinutes: Int, screenshotMinutes: Int) -> String {
+        guard count > 0 else { return "拖文件到刘海上暂存" }
+        return "\(count) 项 · 文件留 \(RetentionFormat.text(fileMinutes)) · 截图留 \(RetentionFormat.text(screenshotMinutes))"
     }
 }
 

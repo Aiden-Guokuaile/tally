@@ -136,29 +136,36 @@ public struct SessionRecord: Codable, Equatable, Identifiable {
         state != .done && state != .ended && now.timeIntervalSince(updatedDate) > 2 * 3600
     }
 
-    /// 会话列表的三组，按原始值从小到大排。
+    /// 会话列表的四组，按原始值从小到大排。已关闭的单独一组放最后、默认折叠：点它会开一个新终端接着聊，
+    /// 混在「最近」里离跑完的会话一行之隔，容易误触。
     public enum Group: Int, CaseIterable {
-        case waiting, working, recent
+        case waiting, working, recent, closed
     }
 
     public func group(now: Date) -> Group {
+        if state == .ended { return .closed }
         if isStale(now: now) { return .recent }
         switch state {
         case .waitingPermission, .waitingInput: return .waiting
         case .running, .compacting: return .working
-        case .done, .ended: return .recent
+        case .done: return .recent
+        case .ended: return .closed
         }
     }
 
-    /// 列表的显示顺序：等你 → 在跑 → 最近，组内按 updated_at 倒序，已关闭的排在最近组末尾。⌘1–⌘5 也按它数。
+    /// 列表的显示顺序：等你 → 在跑 → 最近 → 已关闭，组内按 updated_at 倒序。
     public static func displayOrder(_ sessions: [SessionRecord], now: Date) -> [SessionRecord] {
         sessions.sorted { a, b in
             let ga = a.group(now: now), gb = b.group(now: now)
             if ga != gb { return ga.rawValue < gb.rawValue }
-            if (a.state == .ended) != (b.state == .ended) { return b.state == .ended }
             if a.updatedAt != b.updatedAt { return a.updatedAt > b.updatedAt }
             return a.sessionId < b.sessionId
         }
+    }
+
+    /// ⌘1–⌘9 / ⌘0 按这个数：显示顺序里去掉已关闭的。已关闭的在会话卡片的另一页，只能点行尾「接着聊」，按键碰不到它。
+    public static func shortcutOrder(_ sessions: [SessionRecord], now: Date) -> [SessionRecord] {
+        displayOrder(sessions, now: now).filter { $0.state != .ended }
     }
 
     /// 闭合态徽标计数用：在等我，且没失联。

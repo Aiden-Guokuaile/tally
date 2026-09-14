@@ -33,26 +33,11 @@ final class NotchPanelTests: XCTestCase {
                           "让路期间要低于模态窗口，否则弹框还是被盖住")
         XCTAssertEqual(panel.level, original, "出来还原成原来的 level")
     }
-
-    /// 全屏时隐藏只靠去掉 `.fullScreenAuxiliary`，别的空间行为不能跟着丢。
-    @MainActor
-    func testFullScreenVisibilityOnlyTogglesAuxiliaryBehavior() {
-        _ = NSApplication.shared
-        let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 620, height: 160))
-        defer { panel.close() }
-        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary), "默认在全屏 app 里也出现")
-        XCTAssertTrue(panel.setShowsInFullScreen(false))
-        XCTAssertFalse(panel.collectionBehavior.contains(.fullScreenAuxiliary))
-        XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces), "别的桌面照常出现")
-        XCTAssertFalse(panel.setShowsInFullScreen(false), "没变就报没变，控制器据此不重复上屏")
-        XCTAssertTrue(panel.setShowsInFullScreen(true))
-        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
-    }
 }
 
 final class PanelKeyTests: XCTestCase {
 
-    private let one = UInt16(18), five = UInt16(23), six = UInt16(22), nine = UInt16(25), comma = UInt16(43)
+    private let one = UInt16(18), five = UInt16(23), six = UInt16(22), nine = UInt16(25), zero = UInt16(29), comma = UInt16(43)
 
     func testDigitsSwitchPagesOnlyWhenEnabledAndUnmodified() {
         XCTAssertEqual(PanelKey.action(keyCode: one, modifiers: [], pageKeys: true, sessionKeys: false), .page(0))
@@ -63,12 +48,19 @@ final class PanelKeyTests: XCTestCase {
         XCTAssertNil(PanelKey.action(keyCode: one, modifiers: [.option], pageKeys: true, sessionKeys: true), "⌥1 不归面板")
     }
 
-    func testCommandDigitsJumpToSessionsOnlyWhenEnabledUpToFive() {
+    func testCommandDigitsJumpToTenSessionsOnlyWhenEnabled() {
         XCTAssertEqual(PanelKey.action(keyCode: one, modifiers: [.command], pageKeys: true, sessionKeys: true), .session(0))
-        XCTAssertEqual(PanelKey.action(keyCode: five, modifiers: [.command], pageKeys: true, sessionKeys: true), .session(4))
-        XCTAssertNil(PanelKey.action(keyCode: six, modifiers: [.command], pageKeys: true, sessionKeys: true), "只认 ⌘1–⌘5")
-        XCTAssertNil(PanelKey.action(keyCode: one, modifiers: [.command], pageKeys: true, sessionKeys: false), "默认关")
+        XCTAssertEqual(PanelKey.action(keyCode: six, modifiers: [.command], pageKeys: true, sessionKeys: true), .session(5), "第 6 个会话也有键")
+        XCTAssertEqual(PanelKey.action(keyCode: nine, modifiers: [.command], pageKeys: true, sessionKeys: true), .session(8))
+        XCTAssertEqual(PanelKey.action(keyCode: zero, modifiers: [.command], pageKeys: true, sessionKeys: true), .session(9), "⌘0 是第 10 个")
+        XCTAssertNil(PanelKey.action(keyCode: zero, modifiers: [], pageKeys: true, sessionKeys: true), "单按 0 不归面板")
+        XCTAssertNil(PanelKey.action(keyCode: zero, modifiers: [.command], pageKeys: true, sessionKeys: false))
+        XCTAssertNil(PanelKey.action(keyCode: one, modifiers: [.command], pageKeys: true, sessionKeys: false), "开关关着就放过")
         XCTAssertNil(PanelKey.action(keyCode: one, modifiers: [.command, .shift], pageKeys: true, sessionKeys: true))
+        XCTAssertEqual(PanelKey.sessionShortcutLabel(0), "⌘1")
+        XCTAssertEqual(PanelKey.sessionShortcutLabel(8), "⌘9")
+        XCTAssertEqual(PanelKey.sessionShortcutLabel(9), "⌘0")
+        XCTAssertNil(PanelKey.sessionShortcutLabel(10), "第 11 个起没有键")
     }
 
     func testCommandCommaAlwaysOpensSettings() {

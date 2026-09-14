@@ -23,13 +23,18 @@ final class SessionOrderTests: XCTestCase {
         ]
         XCTAssertEqual(SessionRecord.displayOrder(sessions, now: now).map(\.sessionId),
                        ["permission", "ask", "compacting", "running-old", "done-new", "done-old", "stale", "ended-newest"])
+        XCTAssertEqual(SessionRecord.shortcutOrder(sessions, now: now).map(\.sessionId),
+                       ["permission", "ask", "compacting", "running-old", "done-new", "done-old", "stale"],
+                       "⌘N 不数已关闭的：按到它会开新终端")
     }
 
     func testGroupOfEachState() {
         let now = Date()
         XCTAssertEqual(record("a", .waitingPermission, age: 0, now: now).group(now: now), .waiting)
         XCTAssertEqual(record("a", .compacting, age: 0, now: now).group(now: now), .working)
-        XCTAssertEqual(record("a", .ended, age: 0, now: now).group(now: now), .recent)
+        XCTAssertEqual(record("a", .done, age: 0, now: now).group(now: now), .recent)
+        XCTAssertEqual(record("a", .ended, age: 0, now: now).group(now: now), .closed, "已关闭单独一组")
+        XCTAssertEqual(record("a", .ended, age: 3 * 3600, now: now).group(now: now), .closed)
         XCTAssertEqual(record("a", .waitingInput, age: 3 * 3600, now: now).group(now: now), .recent, "失联的进最近")
         XCTAssertFalse(record("a", .ended, age: 3 * 3600, now: now).isStale(now: now), "已关闭不算失联")
     }
@@ -41,6 +46,7 @@ final class SessionLifecycleTests: XCTestCase {
     private var directory: URL!
     private var transcripts: URL!
     private var keep = true
+    private var limit = 10
 
     override func setUpWithError() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("tally-life-\(UUID().uuidString)")
@@ -62,7 +68,8 @@ final class SessionLifecycleTests: XCTestCase {
 
     @MainActor
     private func makeStore() -> SessionStore {
-        SessionStore(directory: directory, claudeSessions: transcripts, keepClosed: { [unowned self] in self.keep })
+        SessionStore(directory: directory, claudeSessions: transcripts, keepClosed: { [unowned self] in self.keep },
+                     closedLimit: { [unowned self] in self.limit })
     }
 
     private func onDisk(_ id: String) throws -> SessionRecord? {
@@ -91,16 +98,17 @@ final class SessionLifecycleTests: XCTestCase {
     }
 
     @MainActor
-    func testOnlyNewestEndedAreKept() throws {
-        for i in 0..<(SessionStore.maxEnded + 2) {
+    func testOnlyNewestEndedAreKeptUpToTheSetting() throws {
+        limit = 3
+        for i in 0..<5 {
             try write("e\(i)", state: .ended, updatedAt: Double(i + 1))
         }
         let store = makeStore()
         store.reload()
-        XCTAssertEqual(store.sessions.count, SessionStore.maxEnded)
+        XCTAssertEqual(store.sessions.count, 3, "按设置里的条数留")
         XCTAssertNil(try onDisk("e0"), "最旧的两条删掉")
         XCTAssertNil(try onDisk("e1"))
-        XCTAssertNotNil(try onDisk("e6"))
+        XCTAssertNotNil(try onDisk("e4"))
     }
 
     @MainActor

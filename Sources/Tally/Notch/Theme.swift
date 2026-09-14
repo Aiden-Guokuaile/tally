@@ -6,12 +6,15 @@ struct Card<Content: View>: View {
     let title: String?
     let symbol: String?
     let tint: Color
+    /// 标题行最右边的小控件（会话卡片的「已关闭 N ›」），没有就不画。
+    let accessory: AnyView?
     let content: Content
 
-    init(_ title: String? = nil, symbol: String? = nil, tint: Color = .white, @ViewBuilder content: () -> Content) {
+    init(_ title: String? = nil, symbol: String? = nil, tint: Color = .white, accessory: AnyView? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
         self.symbol = symbol
         self.tint = tint
+        self.accessory = accessory
         self.content = content()
     }
 
@@ -27,6 +30,10 @@ struct Card<Content: View>: View {
                     Text(title)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.8))
+                    if let accessory {
+                        Spacer(minLength: 4)
+                        accessory
+                    }
                 }
             }
             content

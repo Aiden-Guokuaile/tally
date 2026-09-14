@@ -4,11 +4,16 @@ import SwiftUI
 struct AIPage: View {
     var store = SessionStore.shared
     var usage = UsageStore.shared
+    /// 会话卡片翻到「已关闭」那一页没有。不落盘：每次展开面板都回到会话——已关闭的点下去会开新终端，平时不该摆在手边。
+    @State private var showingClosed = false
 
     var body: some View {
         VStack(spacing: 8) {
-            Card("会话", symbol: "terminal", tint: .green) {
-                SessionsPage()
+            let closedCount = store.sessions.filter { $0.state == .ended }.count
+            Card(showingClosed ? "已关闭" : "会话", symbol: showingClosed ? "clock.arrow.circlepath" : "terminal", tint: .green,
+                 accessory: closedCount > 0 || showingClosed
+                    ? AnyView(ClosedPageToggle(count: closedCount, showingClosed: $showingClosed)) : nil) {
+                SessionsPage(showingClosed: showingClosed)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxHeight: .infinity)
@@ -16,6 +21,25 @@ struct AIPage: View {
                 UsageStrip(usage: usage)
             }
         }
+    }
+}
+
+/// 会话卡片标题行右边：「已关闭 N ›」翻到已关闭那一页，「‹ 会话」翻回来。
+struct ClosedPageToggle: View {
+    let count: Int
+    @Binding var showingClosed: Bool
+
+    var body: some View {
+        Button { showingClosed.toggle() } label: {
+            Text(showingClosed ? "‹ 会话" : "已关闭 \(count) ›")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.65))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(.white.opacity(0.10)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

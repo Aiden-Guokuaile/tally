@@ -59,11 +59,46 @@ final class ShelfStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testExpiry() {
-        let now = Date()
-        let fresh = ShelfItem(id: "f", name: "f", size: 1, addedAt: now.addingTimeInterval(-ShelfStore.retention + 60).timeIntervalSince1970 * 1000, source: nil)
-        let old = ShelfItem(id: "o", name: "o", size: 1, addedAt: now.addingTimeInterval(-ShelfStore.retention - 60).timeIntervalSince1970 * 1000, source: nil)
-        XCTAssertEqual(ShelfStore.expired([fresh, old], now: now), [old])
+    /// 截图和文件各按各的时长过期；老索引里没标种类的按文件算。
+    func testExpiryByKind() {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        func item(_ id: String, minutesAgo: Double, kind: ShelfKind?) -> ShelfItem {
+            ShelfItem(id: id, name: id, size: 1, addedAt: now.addingTimeInterval(-minutesAgo * 60).timeIntervalSince1970 * 1000, source: nil, kind: kind)
+        }
+        let day: TimeInterval = 86400, halfHour: TimeInterval = 1800
+        let shotOld = item("s-old", minutesAgo: 31, kind: .screenshot)
+        let shotNew = item("s-new", minutesAgo: 10, kind: .screenshot)
+        let fileTwoHours = item("f", minutesAgo: 120, kind: .file)
+        let legacyOld = item("legacy", minutesAgo: 25 * 60, kind: nil)
+        XCTAssertEqual(ShelfStore.expired([shotOld, shotNew, fileTwoHours, legacyOld], now: now, file: day, screenshot: halfHour), [shotOld, legacyOld],
+                       "截图 30 分钟过期、文件 1 天；老索引没标种类的按文件算")
+        XCTAssertEqual(ShelfStore.nextExpiry([shotNew, fileTwoHours], file: day, screenshot: halfHour), now.addingTimeInterval(20 * 60),
+                       "定时器排到最早那一件")
+        XCTAssertNil(ShelfStore.nextExpiry([], file: day, screenshot: halfHour))
+    }
+
+    func testRetentionFormat() {
+        XCTAssertEqual(RetentionFormat.text(30), "30 分钟")
+        XCTAssertEqual(RetentionFormat.text(1440), "1 天")
+        XCTAssertEqual(RetentionFormat.text(120), "2 小时")
+        XCTAssertEqual(RetentionFormat.text(90), "90 分钟", "除不尽就用分钟")
+        XCTAssertTrue(RetentionFormat.split(2880) == (2, .days))
+    }
+
+    /// 到点就清，不等打开这页。
+    @MainActor
+    func testExpiredItemsAreRemovedOnTime() async throws {
+        let root = temp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try sampleFile(root.appendingPathComponent("src"), "shot.png")
+        let store = ShelfStore(directory: root.appendingPathComponent("shelf"), retention: { (file: 3600, screenshot: 0.3) })
+        store.setEnabled(true)
+        defer { store.setEnabled(false) }
+        await store.add(urls: [source], kind: .screenshot)
+        await store.add(urls: [source])
+        XCTAssertEqual(store.items.count, 2)
+        try await Task.sleep(nanoseconds: 1_800_000_000)
+        XCTAssertEqual(store.items.map(\.kind), [.file], "截图到点清掉，文件还在")
     }
 
     /// 老索引里没有 source 这个键，解出来得是 nil，不能整条读不出来。
@@ -72,6 +107,7 @@ final class ShelfStoreTests: XCTestCase {
         let items = try JSONDecoder().decode([ShelfItem].self, from: json)
         XCTAssertEqual(items.count, 1)
         XCTAssertNil(items[0].source)
+        XCTAssertNil(items[0].kind, "老索引没有种类，按文件算保留时长")
     }
 
     /// 剪切交出去的是**来源文件本身**，不是架上那份快照：这样访达做的是一次改名，盘上不多一份副本，

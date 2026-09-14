@@ -25,17 +25,6 @@ final class NotchPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
     }
 
-    /// 全屏 app 里出不出现：带 `.fullScreenAuxiliary` 窗口服务器才让它进全屏空间，去掉就和普通窗口一样，全屏时整个面板不在。
-    /// 不自己判「现在是不是全屏」：量窗口大小会把最大化的窗口当成全屏（codenotch 为此加了关掉的开关）。返回有没有变。
-    @discardableResult
-    func setShowsInFullScreen(_ show: Bool) -> Bool {
-        var behavior = collectionBehavior
-        if show { behavior.insert(.fullScreenAuxiliary) } else { behavior.remove(.fullScreenAuxiliary) }
-        guard behavior != collectionBehavior else { return false }
-        collectionBehavior = behavior
-        return true
-    }
-
     /// 展开态里的按钮要能收到点击，面板必须能成为 key window。
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
