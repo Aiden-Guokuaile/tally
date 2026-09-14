@@ -55,6 +55,10 @@ Also on board: network throughput and proxy status, memory and battery, running 
 
 <p align="center"><img src="docs/images/shelf.png" width="600" alt="Shelf page: files and screenshots dropped on the notch"></p>
 
+**A 25-second walkthrough**: a toast drops, hover expands the panel, then AI, Network, System, Apps and Shelf.
+
+https://github.com/user-attachments/assets/118fcdd1-92fb-4f42-9dde-9b452a773ada
+
 Hover-to-expand, shortcuts, the shelf, sounds, quota alerts and each usage provider can be switched off individually in Settings; "hide the panel over full-screen apps" and "add new screenshots to the shelf" are off by default.
 
 ## Menu bar dinosaur

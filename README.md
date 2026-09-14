@@ -52,6 +52,10 @@
 
 <p align="center"><img src="docs/images/shelf.png" width="600" alt="文件架页：拖到刘海上的文件与截图"></p>
 
+**25 秒完整走一遍**：提示条 → 悬停展开 → AI、网络、系统、应用、文件架五页。
+
+https://github.com/user-attachments/assets/118fcdd1-92fb-4f42-9dde-9b452a773ada
+
 悬停展开、快捷键、文件架、提示音、配额提醒、各家用量都能在设置里单独关掉；「全屏 app 时隐藏面板」「新截图自动放进文件架」默认关，要用在设置里打开。
 
 ## 菜单栏小恐龙
