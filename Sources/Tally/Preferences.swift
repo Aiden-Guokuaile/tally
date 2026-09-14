@@ -12,6 +12,11 @@ struct Preferences: Codable, Equatable {
     var enableCodex = true
     var enableAntigravity = true
     var enableCursor = true
+    /// 国内几家与 New API 中转站：默认关，打开才查（凭据见 `ProviderCredentialsStore`）。
+    var enableDeepSeek = false
+    var enableKimi = false
+    var enableGLM = false
+    var enableNewAPI = false
     /// 面板上次点开的页（rawValue），启动时回到它；`--open` 不写它。
     var lastPage = "ai"
     /// ⌥⇧T 全局快捷键。
@@ -48,6 +53,23 @@ struct Preferences: Codable, Equatable {
     var pageNumberKeys = true
     /// 面板展开时按 ⌘1–⌘5 跳到 AI 页第 N 个会话的终端。只在面板展开时归面板，收起后浏览器、终端自己的 ⌘1–⌘5 照常。
     var sessionCommandKeys = true
+    /// 会话结束后在「最近」里留一行「已关闭」，点一下接着聊。
+    var keepClosedSessions = true
+    /// 配额涨过 80%、用完、重置时闭合态弹一下。
+    var quotaPeek = true
+    /// 会话跑完、在等你时响一声。
+    var sessionSound = true
+    /// 全屏 app 里不出现刘海面板（提示条也看不到，提示音照响）。
+    var hideInFullScreen = false
+    /// 没有刘海屏（合盖接外接屏）时，会话、配额、文件架提示改发系统通知。
+    var notifyWithoutNotch = true
+    /// 新截图自动放进文件架；文件夹是用户在选择面板里点过的那个（点过才有读它的授权）。
+    var screenshotsToShelf = false
+    var screenshotFolder: String?
+    /// 每天问一次 GitHub 有没有新版本；只提示不替换。
+    var checkUpdates = true
+    /// 已经提示过的新版本号：同一个版本只在刘海里说一次。
+    var updateNotifiedVersion: String?
 
     init() {}
 
@@ -67,6 +89,10 @@ struct Preferences: Codable, Equatable {
         enableCodex = try c.decodeIfPresent(Bool.self, forKey: .enableCodex) ?? d.enableCodex
         enableAntigravity = try c.decodeIfPresent(Bool.self, forKey: .enableAntigravity) ?? d.enableAntigravity
         enableCursor = try c.decodeIfPresent(Bool.self, forKey: .enableCursor) ?? d.enableCursor
+        enableDeepSeek = try c.decodeIfPresent(Bool.self, forKey: .enableDeepSeek) ?? d.enableDeepSeek
+        enableKimi = try c.decodeIfPresent(Bool.self, forKey: .enableKimi) ?? d.enableKimi
+        enableGLM = try c.decodeIfPresent(Bool.self, forKey: .enableGLM) ?? d.enableGLM
+        enableNewAPI = try c.decodeIfPresent(Bool.self, forKey: .enableNewAPI) ?? d.enableNewAPI
         lastPage = Self.panelPage(try c.decodeIfPresent(String.self, forKey: .lastPage) ?? d.lastPage)
         hotKeyEnabled = try c.decodeIfPresent(Bool.self, forKey: .hotKeyEnabled) ?? d.hotKeyEnabled
         hoverToOpen = try c.decodeIfPresent(Bool.self, forKey: .hoverToOpen) ?? d.hoverToOpen
@@ -86,6 +112,15 @@ struct Preferences: Codable, Equatable {
         shelfEnabled = try c.decodeIfPresent(Bool.self, forKey: .shelfEnabled) ?? d.shelfEnabled
         pageNumberKeys = try c.decodeIfPresent(Bool.self, forKey: .pageNumberKeys) ?? d.pageNumberKeys
         sessionCommandKeys = try c.decodeIfPresent(Bool.self, forKey: .sessionCommandKeys) ?? d.sessionCommandKeys
+        keepClosedSessions = try c.decodeIfPresent(Bool.self, forKey: .keepClosedSessions) ?? d.keepClosedSessions
+        quotaPeek = try c.decodeIfPresent(Bool.self, forKey: .quotaPeek) ?? d.quotaPeek
+        sessionSound = try c.decodeIfPresent(Bool.self, forKey: .sessionSound) ?? d.sessionSound
+        hideInFullScreen = try c.decodeIfPresent(Bool.self, forKey: .hideInFullScreen) ?? d.hideInFullScreen
+        notifyWithoutNotch = try c.decodeIfPresent(Bool.self, forKey: .notifyWithoutNotch) ?? d.notifyWithoutNotch
+        screenshotsToShelf = try c.decodeIfPresent(Bool.self, forKey: .screenshotsToShelf) ?? d.screenshotsToShelf
+        screenshotFolder = try c.decodeIfPresent(String.self, forKey: .screenshotFolder)
+        checkUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkUpdates) ?? d.checkUpdates
+        updateNotifiedVersion = try c.decodeIfPresent(String.self, forKey: .updateNotifiedVersion)
     }
 }
 

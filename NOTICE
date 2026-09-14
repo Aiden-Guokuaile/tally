@@ -30,6 +30,9 @@ Copyright (c) 2024 Lakr Aream，MIT），代码为重写，未复制其源文件
 - Resources/logos/openai.svg
 - Resources/logos/cursor.svg
 - Resources/logos/antigravity.svg
+- Resources/logos/deepseek.svg
+- Resources/logos/kimi.svg
+- Resources/logos/zai.svg
 
 MIT 许可原文：
 
@@ -55,4 +58,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Claude、OpenAI、Cursor、Antigravity 的名称与标志归各自所有者，放在这里只用来标明是哪家的会话与用量。
+Claude、OpenAI、Cursor、Antigravity、DeepSeek、Kimi、智谱 GLM / Z.ai 的名称与标志归各自所有者，放在这里只用来标明是哪家的会话与用量。

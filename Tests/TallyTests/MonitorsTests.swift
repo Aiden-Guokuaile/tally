@@ -87,6 +87,22 @@ final class PeekTests: XCTestCase {
         XCTAssertEqual(Peek.battery(.full).duration(session: 9, battery: 6), 6, "电池走自己那个秒数")
     }
 
+    func testQuotaPeeks() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let high = Peek.quota(QuotaEvent(provider: .claude, window: "5 小时", kind: .high(percent: 82), resetsAt: nil), now: now)
+        XCTAssertEqual(high.style, .quotaHigh)
+        XCTAssertEqual(high.tint, .orange)
+        XCTAssertEqual(high.label, "配额 82%")
+        XCTAssertEqual(high.title, "Claude · 5 小时")
+        XCTAssertEqual(high.subtitle, "已用 82%")
+        XCTAssertNil(high.sessionId, "不可点")
+        XCTAssertEqual(high.duration(session: 7, battery: 3), 7, "停留跟会话提示走")
+        let exhausted = Peek.quota(QuotaEvent(provider: .codex, window: "7 天", kind: .exhausted, resetsAt: now.addingTimeInterval(3600)), now: now)
+        XCTAssertEqual(exhausted.tint, .red)
+        XCTAssertTrue(exhausted.subtitle?.hasPrefix("用完了 · ") == true, "带重置时刻")
+        XCTAssertEqual(Peek.quota(QuotaEvent(provider: .codex, window: "7 天", kind: .reset, resetsAt: nil), now: now).style, .quotaReset)
+    }
+
     /// 这条钉的是那个 bug 的一半：会话提示条挂着时不许悬停展开，
     /// 否则 open() 的 clearPeek() 抢在人按下鼠标之前把它清掉，点击落到空处。
     func testSessionPeekBlocksHoverOpen() {
@@ -94,6 +110,53 @@ final class PeekTests: XCTestCase {
         XCTAssertTrue(Peek.holdsHoverOpen(session), "会话类要拦住悬停展开")
         XCTAssertFalse(Peek.holdsHoverOpen(Peek.battery(.full)), "电池类不拦，拦了悬停展开要被堵住一整条提示条的时间")
         XCTAssertFalse(Peek.holdsHoverOpen(nil))
+    }
+
+    /// 低优先级的不顶掉正挂着的高优先级：电池提示不许盖掉「等输入」；同一个会话的新状态直接换。
+    func testPeekPriorityQueue() {
+        func session(_ id: String, _ state: SessionRecord.State) -> Peek {
+            Peek.session(SessionRecord(sessionId: id, state: state, cwd: "/tmp/x", title: "标题", transcriptPath: "", message: nil, updatedAt: 1))
+        }
+        let ask = session("a", .waitingInput)
+        let done = session("b", .done)
+        let battery = Peek.battery(.full)
+        let quota = Peek.quota(QuotaEvent(provider: .claude, window: "5 小时", kind: .exhausted, resetsAt: nil))
+        XCTAssertEqual(PeekQueue.decide(incoming: battery, showing: nil), .show)
+        XCTAssertEqual(PeekQueue.decide(incoming: battery, showing: ask), .wait, "电池提示不许盖掉等输入")
+        XCTAssertEqual(PeekQueue.decide(incoming: quota, showing: done), .wait)
+        XCTAssertEqual(PeekQueue.decide(incoming: Peek.shelf(names: ["a"], enabled: true), showing: quota), .wait, "一样高排队，不顶掉")
+        XCTAssertEqual(PeekQueue.decide(incoming: session("c", .waitingPermission), showing: ask), .wait,
+                       "两个会话前后脚都在等审批：后来的排队，先来的不能被顶掉")
+        XCTAssertEqual(PeekQueue.decide(incoming: ask, showing: done), .show, "等你的顶掉跑完的")
+        XCTAssertEqual(PeekQueue.decide(incoming: session("a", .done), showing: ask), .show, "同一个会话的新状态直接换，不留过时的等输入")
+        XCTAssertEqual(PeekQueue.keep(battery, over: quota), quota, "队里留高的")
+        XCTAssertEqual(PeekQueue.keep(quota, over: battery), quota)
+        XCTAssertEqual(PeekQueue.keep(battery, over: nil), battery)
+    }
+
+    func testAlertSoundCoalescesBursts() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertTrue(AlertSound.shouldPlay(lastPlayed: nil, now: now))
+        XCTAssertFalse(AlertSound.shouldPlay(lastPlayed: now.addingTimeInterval(-1), now: now), "几个会话前后脚跑完只响一声")
+        XCTAssertTrue(AlertSound.shouldPlay(lastPlayed: now.addingTimeInterval(-AlertSound.quietWindow), now: now))
+    }
+
+    func testOnlyBatteryPeeksStayOutOfSystemNotifications() {
+        let done = Peek.session(SessionRecord(sessionId: "s", state: .done, cwd: "/tmp/x", title: "标题", transcriptPath: "", message: "", updatedAt: 1))
+        XCTAssertTrue(done.notifiesWithoutNotch)
+        XCTAssertTrue(Peek.quota(QuotaEvent(provider: .codex, window: "7 天", kind: .exhausted, resetsAt: nil)).notifiesWithoutNotch)
+        XCTAssertTrue(Peek.shelf(names: ["a"], enabled: true).notifiesWithoutNotch)
+        XCTAssertFalse(Peek.battery(.full).notifiesWithoutNotch, "电池的不发，系统自己会说")
+    }
+
+    func testShelfPeek() {
+        let one = Peek.shelf(names: ["a.png"], enabled: true)
+        XCTAssertEqual(one.style, .shelf)
+        XCTAssertEqual(one.title, "a.png")
+        XCTAssertNil(one.sessionId, "不可点")
+        XCTAssertEqual(one.duration(session: 9, battery: 3), 3, "停留跟电池走")
+        XCTAssertEqual(Peek.shelf(names: ["a", "b"], enabled: true).title, "2 个文件")
+        XCTAssertEqual(Peek.shelf(names: ["a"], enabled: false).label, "文件架没开")
     }
 
     /// 点提示条按设置三选一；电池类不可点，给空计划。

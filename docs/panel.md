@@ -4,11 +4,13 @@
 
 ## 找内建屏
 
-`NotchGeometry.builtInNotchScreen()`：遍历 `NSScreen.screens`，取 `deviceDescription["NSScreenNumber"]` 得显示器 id，`CGDisplayIsBuiltin != 0` 且 `safeAreaInsets.top > 0` 的那一个；没有就返回 nil，控制器 `orderOut` 并按收起处理（采样一起停）。不用 `NSScreen.main`：接外接屏时它可能是外接屏。`NSApplication.didChangeScreenParametersNotification` 到了就重找。
+`NotchGeometry.builtInNotchScreen()`：遍历 `NSScreen.screens`，取 `deviceDescription["NSScreenNumber"]` 得显示器 id，`CGDisplayIsBuiltin != 0` 且 `safeAreaInsets.top > 0` 的那一个；没有就返回 nil，控制器 `orderOut` 并按收起处理（采样一起停）；这时提示条画不出来，会话、配额、文件架提示改发系统通知（`SystemNotifier`，设置「提示」可关，默认开；电池的不发，系统自己会说；授权等到第一次真要发时才请求，一直用内建屏的人不会被问；点会话通知跳回那个终端；拒过通知的话，设置「提示」那一节红字说去「系统设置 → 通知 → Tally」打开，这条路本来就是提示条画不出来时才走的，拒了就什么提醒都没有，不能只记日志）。不用 `NSScreen.main`：接外接屏时它可能是外接屏。`NSApplication.didChangeScreenParametersNotification` 到了就重找。
 
 ## 窗口属性（`NotchPanel`）
 
 `NSPanel`，`styleMask = [.borderless, .nonactivatingPanel]`，`level = .mainMenu + 3`，`collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]`，`isFloatingPanel`、`hidesOnDeactivate = false`、无阴影、背景透明，`canBecomeKey = true`（展开态的按钮要收到点击）。
+
+**全屏 app 时隐藏面板**（设置「面板」，默认关）：开着就去掉 `.fullScreenAuxiliary`（`NotchPanel.setShowsInFullScreen`，已经在屏上的窗口要重新上屏才生效），窗口服务器不让它进全屏空间，全屏 app 里整个面板不在，提示条也看不到、提示音照响，退出全屏就回来。不自己判「现在是不是全屏」：量窗口大小会把最大化的窗口当成全屏（codenotch 为此又加了一个关掉的开关）。所以只认系统全屏（绿色按钮、⌃⌘F，浏览器里视频全屏也是开新的全屏空间），自己铺满屏幕的无边框窗口不算。
 
 **收起时必须把键盘焦点还回去**：`open()` 里 `makeKeyAndOrderFront` 之后，键盘焦点从前台 app 转到 Tally 进程（非激活面板就是「不激活也能收键盘」）；`close()` 不交还的话，面板缩回刘海了焦点还在它身上，之后打的字全进面板，直到用户点一下别处。所以 `close()` 里面板仍是 key 就 `resignKey()`。探针实测（AX 的 `kAXFocusedUIElementAttribute` 读焦点属于哪个进程）：makeKey 后属面板进程，什么都不做就一直留在那儿；`resignKey()` 后回到原来的 app，再 makeKey 照常拿回，连做三轮一样。`orderOut` + `orderFrontRegardless` 也能还，但会重排窗口，不用。面板不抢激活，所以主菜单的快捷键收不到，见「键盘」；**`.help(…)` 的悬停提示在这个面板里靠不住**：AppKit 只在 app 处于前台时画提示，而面板展开时前台仍是别的 app（实测钉住面板时 `lsappinfo front` 返回的是别的 app，不是 Tally）。应用页实测悬停整行没有任何提示出现，所以要给行加说明走右键菜单或直接画在行里。页签名字、刷新按钮的「更新于 HH:mm」、摄像头 / 麦克风占用点、文件架文件名这几处也用 `.help`，它们到底出不出现没验证过——真要依赖，先拿一次悬停实测确认。`sharingType` 跟着「截屏和共享屏幕时隐藏面板」开关走（[monitors.md](monitors.md)）。
 
@@ -54,14 +56,21 @@
 1. **首次点击被 AppKit 吞掉**。面板是 `.nonactivatingPanel`，提示态从不 `makeKeyAndOrderFront`（只有 `open()` 里才调）。AppKit 对非 key 窗口的首次左键点击的规矩是「拿它把窗口变 key，然后丢弃」，除非命中视图的 `acceptsFirstMouse` 返回真。`NotchHostView` 现在覆盖了它（实测：不覆盖 `mouseDown=0`，覆盖后 `mouseDown=1`）。不能在 `mouseDown` 里补救——它压根不会被调用。
 2. **悬停展开抢在点击之前把提示条清掉了**。光标进面板 150 ms 就 `open()`，而 `open()` 第一件事是 `clearPeek()`；人从「光标落到目标上」到「按下鼠标」要 200–400 ms，所以点击永远落在已经展开的面板上，而那个位置正好是标题行给物理刘海留的空位（`headerGap`），空的。现在 `hoverStarted()` 在**会话类**提示条挂着时不起定时器；提示条到期收回的那一刻，若光标还在 `panel.frame` 内才补起一个。只拦会话类：电池提示条也拦的话，悬停展开要被堵住一整条提示条的时间。追踪区只在光标真正跨界时发 `mouseEntered`，光标不动就再也不发，所以到期那一刻必须主动查一次 `NSEvent.mouseLocation`。
 
-两个来源：
+四个来源：
 
 - 会话事件（`SessionStore.sessionAlert`，判定见 [ai.md](ai.md) 的「提示」）：跑完一个回合是绿勾 +「Claude」「Codex」，标题是会话标题，副标题是回合最后一句话的开头（`message` 为空就是「跑完了 · 点这里跳过去」；API 报错结束的回合是那句报错，按 Esc 打断的不弹，见 [ai.md](ai.md)「打断与 API 报错」），停留时长按设置里的「会话提示停留」（默认 5 秒）；进入等审批 / 等输入是橙叹号 / 黄问号 +「等审批」「等输入」，副标题「Claude 在等你点一下 · 点这里跳过去」，比跑完多留 `Peek.askExtra`（3 秒）——真要人来的那种该多给点时间。
 - 电池事件（[monitors.md](monitors.md)）：接电、拔电、低电、充满各一种图标与文案，停留时长按设置里的「电池提示停留」（默认 3 秒）。
+- 配额事件（[ai.md](ai.md)「配额提醒」）：涨过 80% 是橙色仪表 +「配额 80%」、用完是红三角 +「配额用完」、重置是绿色循环箭头 +「配额重置」，标题「Claude · 5 小时」，副标题是用量与重置时刻；不可点，停留时长跟会话提示走。设置「提示 → 配额提醒」可关。
+- 文件架（[shelf.md](shelf.md)「从命令行放进来」）：`open -a Tally <文件>` 放进来时是薄荷绿托盘 +「放进文件架」，标题是文件名（多个是「N 个文件」）；文件架关着是橙色「文件架没开」。不可点，停留时长跟电池提示走。
+
+会话提示另有两条规矩（`NotchController.sessionAlerted`）：
+
+- **那个会话的终端标签就在前台时，不响也不弹**：人正看着它，提示给不了新信息（vibe-notch、CodeIsland 的做法）。先比前台 app 是不是会话的终端，是才去问标签：Ghostty 取 `id of focused terminal of selected tab of front window`，和 `GhosttyMatch` 挑出的那个终端比；Terminal 取 `tty of selected tab of front window`、iTerm 取 `tty of current session of current window`，和记录里的 tty 比。问之前用 `AEDeterminePermissionToAutomateTarget`（`askUserIfNeeded = false`）确认已经有自动化授权，没有就当不在前台——不能为了一条提示去弹授权框。tmux、编辑器和别的终端判不到标签，照常提示。
+- **提示音**：跑完放 `Glass`，等审批 / 等输入放 `Ping`（`/System/Library/Sounds`）。走 `AVAudioPlayer` 不走 `NSSound`：系统设置里关掉「播放用户界面音效」后 `NSSound` 不出声（codenotch 踩过）。面板展开时和提示条一样不响；配额和电池提示不响。设置「提示 → 提示音」可关，默认开。2 秒内连着来的只响第一声（`AlertSound.shouldPlay`）：几个会话前后脚跑完不该叮叮叮一串（CodeIsland 的做法）。
 
 入场动效（`PeekContent` / `PeekIcon`，全是 SwiftUI 自带的动画与符号动效，`peek.id` 一变视图重建、动画重放）：图标块从中心用欠阻尼弹簧弹出，同时向外扩一圈同色涟漪；标题行从刘海底下往下滑出，副标题晚 0.1 s 跟上。图标按 `style` 各有动作：会话完成先画满圆环再从左到右画勾，勾画完从中心撒一把十二片彩纸（角度距离按序号定，不用随机数）；接电闪电向上弹一下并持续脉动；拔电插头往下弹一下；低电电池脉动加轻晃；充满电池弹一下、右上角撒一颗星。电源文案见 [monitors.md](monitors.md)。
 
-到时收回（时长 `Peek.duration(session:battery:)`，两个秒数在设置里调，2 到 30 秒）；期间又来一条就换成新的并重新计时；电池类的鼠标进来照旧悬停展开、提示随之消失，会话类的要等它到期（见上）。面板展开时不弹（会话那一行已经变成绿勾或橙叹号）。提示条比刘海宽出去的部分会盖住紧挨刘海的一点菜单栏，不做 Atoll 那种量菜单位置再避让。
+到时收回（时长 `Peek.duration(session:battery:)`，两个秒数在设置里调，2 到 30 秒）；期间又来一条按优先级排（`Peek.priority`，`PeekQueue` 纯函数）：等审批 / 等输入 > 跑完 > 配额、文件架 > 电池。比正挂着的高、或是同一个会话的新状态，就换成新的并重新计时；一样高或更低的排到它收回之后接着垂（队里只留一条，留优先级高的，一样高留新的）——不然一条电池提示能把「等输入」顶掉；一样高也排，是因为两个会话前后脚都在等审批时，后来的顶掉先来的，先来的就再没人提醒了。展开面板、点提示条时队里那条一起丢掉：人已经在看了；电池类的鼠标进来照旧悬停展开、提示随之消失，会话类的要等它到期（见上）。面板展开时不弹（会话那一行已经变成绿勾或橙叹号）。提示条比刘海宽出去的部分会盖住紧挨刘海的一点菜单栏，不做 Atoll 那种量菜单位置再避让。
 
 ## 页签与手势
 
@@ -74,7 +83,7 @@
 - ⌥⇧T（`HotKeyCenter`，Carbon `RegisterEventHotKey`，不要辅助功能授权）：收起就钉住展开到当前页，展开就收起。设置里可关；注册失败（别的 app 占了同一组合键）在开关下方红字提示。选 ⌥⇧ 是因为 ⌃⌥ 打头的组合常被代理类工具占用。
 - ⌘,：面板展开时由本地键盘监视器接（只认 `event.window === panel` 的 ⌘,），设置窗口开着时走主菜单的「设置…」命令。不做全局 ⌘,，那会抢走别的 app 的这个键。
 - 数字键 1–9：面板展开时切到第 N 个页签（按 `LaunchOptions.Page.visible(shelf:)` 数，超出的键吞掉不响）。设置「面板 → 键盘」可关，默认开。
-- ⌘1–⌘5：面板展开时跳到 AI 页会话列表第 N 行的终端（和点那一行一样，走 `SessionJump.run`）。跳过去之后面板照旧开着，和点那一行一样，鼠标移出才收（终端被叫到前台，键盘跟着过去）；跳不成切到 AI 页，那一行红字说原因（失败原因按会话记在 `SessionJump.failures`，点行和按键共用）。设置里可关，默认开：它和浏览器、终端自己的 ⌘1–⌘5 同名，但只在面板展开时归面板，收起后照常给别的 app。
+- ⌘1–⌘5：面板展开时跳到 AI 页会话列表第 N 行的终端（和点那一行一样，走 `SessionJump.run`；已关闭的那行是接着聊）。按分组后的显示顺序数（`SessionRecord.displayOrder`），有人在等时 ⌘1 就是最急的那个；按住 ⌘ 时前五行行尾浮出「⌘1」…「⌘5」，松开消失——同一个本地监视器多接一个 `.flagsChanged`，开关关着不显示，收起面板时清掉。跳过去之后面板照旧开着，和点那一行一样，鼠标移出才收（终端被叫到前台，键盘跟着过去）；跳不成切到 AI 页，那一行红字说原因（失败原因按会话记在 `SessionJump.failures`，点行和按键共用）。设置里可关，默认开：它和浏览器、终端自己的 ⌘1–⌘5 同名，但只在面板展开时归面板，收起后照常给别的 app。
 - 这几个键都在同一个本地键盘监视器里、按物理键位（`keyCode`）判，不看字符：输入法和键盘布局会改字符。判定是纯函数 `PanelKey.action`。不做全局：收起后数字和 ⌘N 照常打进原来的 app。
 
 ## 共用排版件（`Theme.swift`）
@@ -89,13 +98,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 通用 | 开机自启（写 `LaunchAgent` 再写 `Preferences`，失败显示原因）、⌥⇧T 开关（注册失败红字）、版本号与退出 |
-| 面板 | 悬停展开；键盘（数字键 1–9 切页签、⌘1–⌘5 跳会话，都默认开）；标题行「保持唤醒」按钮；合盖也不休眠（含免密规则的装 / 撤）；截屏和共享屏幕时隐藏面板 |
-| 提示 | 电池提示、点会话提示条时做什么（默认跳回对应终端）、摄像头 / 麦克风占用点；一行说明会话完成提示没有单独开关 |
-| 文件架 | 开关、存放位置（在访达中显示）、已暂存几项、清空（[shelf.md](shelf.md)） |
+| 通用 | 开机自启（写 `LaunchAgent` 再写 `Preferences`，失败显示原因）、⌥⇧T 开关（注册失败红字）、检查新版本（默认开，见 [hooks.md](hooks.md)「发版与更新」）、版本号与退出 |
+| 面板 | 悬停展开、全屏 app 时隐藏面板（默认关）；键盘（数字键 1–9 切页签、⌘1–⌘5 跳会话，都默认开）；会话列表（保留已关闭的会话，默认开）；标题行「保持唤醒」按钮；合盖也不休眠（含免密规则的装 / 撤）；截屏和共享屏幕时隐藏面板 |
+| 提示 | 电池提示、点会话提示条时做什么（默认跳回对应终端）、提示音（默认开）、配额提醒（默认开）、没有刘海屏时改发系统通知（默认开）、摄像头 / 麦克风占用点；一行说明会话完成提示没有单独开关 |
+| 文件架 | 开关、新截图自动放进来（开的时候选截图文件夹）、存放位置（在访达中显示）、已暂存几项、清空（[shelf.md](shelf.md)） |
 | hook | 两侧 hook 行（状态 + 安装 / 移除，见 [hooks.md](hooks.md)） |
-| 用量 | 四家提供方开关 |
-| 关于 | 原「帮助」页：48pt 图标、「Tally」24pt、版本行读 `CFBundleShortVersionString`、「本应用由「郭快乐」个人开发并所有」、个人开发者及隐私声明（不列移植模块）；版本与作者之间显示 03 Q 版高达 Unicode 点阵（51 列 × 28 行）及「高达护航 · 用量有数」，图案等宽左对齐、整块居中，辅助功能用一句图案描述代替逐字符朗读；下面两段短说明：装 hook、卸载（面板怎么用、数据从哪来在界面上一看就知道，不写） |
+| 用量 | 各家提供方开关；DeepSeek、Kimi、GLM、New API 每家一节：开关、现在用的是哪份凭据（手填 / Claude Code 设置 / Kimi Code / zcode / opencode）、手填的 key 与区（New API 是站点地址、访问令牌、用户 ID）、「现在查一次」（只重查这一家，不占 60 秒节流），见 [ai.md](ai.md)「国内几家与 New API」 |
+| 关于 | 原「帮助」页：48pt 图标、「Tally」24pt、版本行读 `CFBundleShortVersionString`、「本应用由「Aiden-Guokuaile」个人开发并所有」、个人开发者及隐私声明（不列移植模块）；版本与作者之间显示 03 Q 版高达 Unicode 点阵（51 列 × 28 行）及「高达护航 · 用量有数」，图案等宽左对齐、整块居中，辅助功能用一句图案描述代替逐字符朗读；下面两段短说明：装 hook、卸载（面板怎么用、数据从哪来在界面上一看就知道，不写） |
 
 开关的落点见 [monitors.md](monitors.md)。设置文件是 `~/Library/Application Support/Tally/preferences.json`，解码一律 `decodeIfPresent` 取默认；读失败记日志按默认值，写失败在「通用」顶部红字（内存里已改，重启会回到磁盘上的值）。
 
@@ -121,11 +130,13 @@ swift test --filter 'NotchGeometryTests|SwipeTests|PreferencesTests|NotchPanelTe
 pkill -x Tally; while pgrep -x Tally >/dev/null; do sleep 0.5; done; open -a Tally --args --open ai && sleep 4 && screencapture -R256,0,1000,480 -x /tmp/tally-open.png
 ```
 
-用例：闭合尺寸 1512 / 663 / 664 / 32 → 189 × 32、无刘海返回 nil、钉住点击只认刘海那段（刘海中央算、页签位置不算、刘海下方不算）、`openHeight` 三段夹紧、提示态宽随内容夹在刘海宽与上限之间、翻页阈值与方向、缩小宽限三态与屏幕顶边那一行算在面板里、页摘要文案、`lastPage` 非法值回落、面板按键（1–9 切页签只在开关开着且没按修饰键时、⌘1–⌘5 只在开关开着时、⌘, 恒有、别的组合不管）。截图：闭合态刘海两侧无边框；展开态居中、页签胶囊。手动：悬停展开、点外收起、⌥⇧T 展开再收起、展开时 ⌘, 开设置、两指横滑翻页；另外三条只能看实物、用真键盘验：
+用例：闭合尺寸 1512 / 663 / 664 / 32 → 189 × 32、无刘海返回 nil、钉住点击只认刘海那段（刘海中央算、页签位置不算、刘海下方不算）、`openHeight` 三段夹紧、提示态宽随内容夹在刘海宽与上限之间、翻页阈值与方向、缩小宽限三态与屏幕顶边那一行算在面板里、页摘要文案、`lastPage` 非法值回落、面板按键（1–9 切页签只在开关开着且没按修饰键时、⌘1–⌘5 只在开关开着时、⌘, 恒有、别的组合不管）；配额提示条（三种事件的样式、颜色、不可点、停留跟会话走）；提示排队（电池不顶掉等输入、等你顶掉跑完、一样高排队、两个会话都在等审批时后来的排队、同一会话的新状态直接换、队里留高的）；提示音 2 秒内只响一声；文件架提示条（单个文件名、多个计数、关着时的文案、停留跟电池走）；全屏隐藏只增删 `.fullScreenAuxiliary`、没变报没变；没有刘海屏时只有电池提示不发通知。前台判定要真的前台 app 和 AppleScript，单测覆盖不到：在 Ghostty 里盯着一个会话的标签等它跑完一个回合——不响不弹；切到别的 app 再跑一轮——响 Glass、垂提示条。截图：闭合态刘海两侧无边框；展开态居中、页签胶囊。手动：悬停展开、点外收起、⌥⇧T 展开再收起、展开时 ⌘, 开设置、两指横滑翻页；另外三条只能看实物、用真键盘验：
 
 1. 展开面板按 2：切到网络页；按 ⌘1：跳到第一个会话的终端，面板照旧开着、鼠标移出才收，接着打字进的是那个终端；面板收起时按数字照常打进原来的 app。
 2. 在任意 app 里打字，光标停到刘海等它展开，再移开继续打：字照常进原来的 app。
 3. ⌥⇧T 钉住后点「网络」页签：切页，不收起；再点刘海中央才收。
+4. 开「全屏 app 时隐藏面板」，把一个 app 全屏（⌃⌘F）：光标甩到刘海处面板不展开，跑完一个会话只响不弹；退出全屏后面板回来。关掉开关再全屏：面板照常出现。
+5. 合盖接外接屏，跑完一个会话：出系统通知横幅（第一次先问通知权限），点它跳回那个终端。
 
 提示条那条点击链路单测覆盖不到（`acceptsFirstMouse` 是事件投递层的事），只能手动走一遍，跑一轮交互会话让提示条落下之后：
 

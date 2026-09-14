@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// 问用户的 shell。app 自己只有 launchd 给的那点环境，用户的 PATH、CODEX_HOME 都得问出来。
@@ -44,5 +45,39 @@ enum CodexHome {
             .first { !$0.isEmpty }
         guard let value else { return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex") }
         return URL(fileURLWithPath: (value as NSString).expandingTildeInPath)
+    }
+}
+
+/// Claude Code 的家。默认 `~/.claude`，设了 `CLAUDE_CONFIG_DIR` 就整个搬过去：settings.json（hook 装哪儿）、projects/（用量日志）、
+/// sessions/（打断判定）、.credentials.json、.claude.json 都跟着走，钥匙串里凭据那条的服务名也跟着变。做法同 `CodexHome`。
+enum ClaudeHome {
+
+    /// 原值，不规范化：钥匙串服务名按原字符串算哈希，带不带尾斜杠算出来不一样。
+    static let rawValue: String? = resolveRaw(
+        shellValue: LoginShell.value(LoginShell.lines("-lc", "echo TALLY_CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"), marker: "TALLY_CLAUDE_CONFIG_DIR"),
+        recorded: HookHeartbeat.read(sessionsDirectory: PreferencesStore.directory.appendingPathComponent("sessions"), provider: "claude")?.claudeConfigDir)
+    static var url: URL { SessionRecord.claudeHome(configDir: rawValue) }
+
+    /// app 自己的环境优先（从终端启动时才有），再是登录 shell 问回来的，最后是 hook 上次记下的 Claude Code 真实环境
+    /// （变量只写在 `.zshrc` 里时登录 shell 问不出来，不补这一层就会读错家）；空白当没设。
+    static func resolveRaw(shellValue: String?, recorded: String? = nil) -> String? {
+        [ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], shellValue, recorded]
+            .compactMap { $0 }
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    /// `.claude.json`（套餐名在里面）：没设时在家目录旁边的 `~/.claude.json`，设了在那个目录里面。
+    static func globalConfig(_ raw: String?) -> URL {
+        guard raw != nil else { return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json") }
+        return SessionRecord.claudeHome(configDir: raw).appendingPathComponent(".claude.json")
+    }
+
+    /// 钥匙串里 OAuth 凭据那条的服务名：没设是「Claude Code-credentials」；设了接「-」加原值（NFC）sha256 的前 8 位十六进制，
+    /// 设成 `~/.claude` 本身也加（Claude Code 2.1.270 的算法）。
+    static func keychainService(_ raw: String?) -> String {
+        let base = "Claude Code-credentials"
+        guard let raw else { return base }
+        let digest = SHA256.hash(data: Data(raw.precomposedStringWithCanonicalMapping.utf8))
+        return base + "-" + digest.map { String(format: "%02x", $0) }.joined().prefix(8)
     }
 }

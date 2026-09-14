@@ -1,5 +1,5 @@
 // 移植自 Atoll（https://github.com/Ebullioscopic/Atoll），Copyright (C) 2024-2026 Atoll Contributors，GPL-3.0，见仓库 LICENSE 与 NOTICE。
-// Tally 改动：配额不再调会回写凭据的客户端；先读 statusline 缓存，没有或陈旧再用只读客户端；按模型分的周窗口只有接口有，单独按 10 分钟节流取；日志走 UsageScanCache 增量扫描。
+// Tally 改动：配额不再调会回写凭据的客户端；先读 statusline 缓存，没有或陈旧再用只读客户端；按模型分的周窗口只有接口有，单独按 10 分钟节流取；日志走 UsageScanCache 增量扫描；projects 与 .claude.json 跟着 ClaudeHome（CLAUDE_CONFIG_DIR）。
 import Foundation
 
 struct ClaudeUsageProvider: UsageProvider {
@@ -11,7 +11,7 @@ struct ClaudeUsageProvider: UsageProvider {
     let scopedBox: ScopedLimitsBox
     let scan: UsageScanCache
 
-    init(root: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects"),
+    init(root: URL = ClaudeHome.url.appendingPathComponent("projects"),
          limits: ClaudeLimitsCache = ClaudeLimitsCache(),
          quota: ClaudeQuotaReadOnly = ClaudeQuotaReadOnly(),
          scopedBox: ScopedLimitsBox = ScopedLimitsBox(),
@@ -64,7 +64,7 @@ struct ClaudeUsageProvider: UsageProvider {
 
     func fetchSnapshot(now: Date) async throws -> UsageSnapshot {
         guard FileManager.default.fileExists(atPath: root.path) else {
-            throw UsageError.notFound("No ~/.claude/projects — Claude Code not detected")
+            throw UsageError.notFound("没找到 \(root.path)：没装 Claude Code，或 CLAUDE_CONFIG_DIR 指到了别处")
         }
         let files = jsonlFiles(under: root)
         guard !files.isEmpty else { throw UsageError.notFound("No Claude usage logs found") }
@@ -148,7 +148,7 @@ struct ClaudeUsageProvider: UsageProvider {
     /// falling back to `organizationType`. Returns nil if the file is missing or malformed, so the
     /// badge simply does not render — this is best-effort and never fails the snapshot.
     private static func readPlanLabel() -> String? {
-        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
+        let url = ClaudeHome.globalConfig(ClaudeHome.rawValue)
         guard let data = try? Data(contentsOf: url),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let account = obj["oauthAccount"] as? [String: Any] else { return nil }

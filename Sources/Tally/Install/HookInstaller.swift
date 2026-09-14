@@ -13,20 +13,25 @@ enum HookSide: CaseIterable {
         }
     }
 
+    /// 写进状态文件和心跳文件名里的提供方。
+    var provider: String {
+        self == .codex ? "codex" : "claude"
+    }
+
     var events: [String] {
         switch self {
-        case .claude: return ["SessionStart", "UserPromptSubmit", "Notification", "PostToolUse", "Stop", "SessionEnd"]
+        case .claude: return ["SessionStart", "UserPromptSubmit", "Notification", "PostToolUse", "PreCompact", "Stop", "SessionEnd"]
         case .codex: return ["SessionStart", "UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop", "SessionEnd"]
         }
     }
 }
 
 enum HookStatus: Equatable {
-    /// 六个事件下都恰好有一个 Tally 匹配组且命令等于期望值。
+    /// 每个事件下都恰好有一个 Tally 匹配组且命令等于期望值。
     case installed
     /// 至少一个事件下有 Tally 匹配组，但不满足 installed；关联值是人话说明。
     case pointsElsewhere(String)
-    /// 六个事件下都没有 Tally 匹配组。
+    /// 哪个事件下都没有 Tally 匹配组。
     case missing
 }
 
@@ -93,11 +98,10 @@ struct HookInstaller {
 
     /// 真实路径 + 真实的 app-server 查询。
     static func live() -> HookInstaller {
-        let home = FileManager.default.homeDirectoryForCurrentUser
         let binary = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("tally-hook").path
             ?? "/Applications/Tally.app/Contents/MacOS/tally-hook"
         return HookInstaller(
-            claudeSettings: home.appendingPathComponent(".claude/settings.json"),
+            claudeSettings: ClaudeHome.url.appendingPathComponent("settings.json"),
             codexHooks: CodexHome.url.appendingPathComponent("hooks.json"),
             codexConfig: CodexHome.url.appendingPathComponent("config.toml"),
             hookBinary: binary,
@@ -195,7 +199,7 @@ struct HookInstaller {
 
     // MARK: 移除
 
-    /// 把六个事件下的 Tally 匹配组删掉，别的 hook 不动；事件数组空了就连键一起删。
+    /// 把各事件下的 Tally 匹配组删掉，别的 hook 不动；事件数组空了就连键一起删。
     /// Codex 侧删掉后别的 hook 序号前移、信任哈希失效，所以重新拿一遍 hooks/list 把剩下的哈希都写回去。
     func uninstall(_ side: HookSide) throws {
         // 先记下移除前哪些 hook 是用户信任过的，改完只把这些写回去
@@ -313,7 +317,7 @@ struct HookInstaller {
 
     static func manualSteps(_ side: HookSide, hookBinary: String) -> String {
         let command = side == .codex ? "\"\(hookBinary)\" --provider codex" : "\"\(hookBinary)\""
-        let file = side == .claude ? "~/.claude/settings.json" : CodexHome.url.appendingPathComponent("hooks.json").path
+        let file = side == .claude ? ClaudeHome.url.appendingPathComponent("settings.json").path : CodexHome.url.appendingPathComponent("hooks.json").path
         var text = "在 \(file) 的 hooks 下，给 \(side.events.joined(separator: "、")) 各加一条：\n"
         text += "{ \"hooks\": [ { \"type\": \"command\", \"command\": \"\(command.replacingOccurrences(of: "\"", with: "\\\""))\", \"timeout\": 5 } ] }\n"
         if side == .codex {

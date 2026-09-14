@@ -33,6 +33,21 @@ final class NotchPanelTests: XCTestCase {
                           "让路期间要低于模态窗口，否则弹框还是被盖住")
         XCTAssertEqual(panel.level, original, "出来还原成原来的 level")
     }
+
+    /// 全屏时隐藏只靠去掉 `.fullScreenAuxiliary`，别的空间行为不能跟着丢。
+    @MainActor
+    func testFullScreenVisibilityOnlyTogglesAuxiliaryBehavior() {
+        _ = NSApplication.shared
+        let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 620, height: 160))
+        defer { panel.close() }
+        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary), "默认在全屏 app 里也出现")
+        XCTAssertTrue(panel.setShowsInFullScreen(false))
+        XCTAssertFalse(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+        XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces), "别的桌面照常出现")
+        XCTAssertFalse(panel.setShowsInFullScreen(false), "没变就报没变，控制器据此不重复上屏")
+        XCTAssertTrue(panel.setShowsInFullScreen(true))
+        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+    }
 }
 
 final class PanelKeyTests: XCTestCase {

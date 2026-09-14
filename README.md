@@ -1,95 +1,181 @@
+<div align="center">
+
 # Tally
 
-MacBook 刘海里的信息面板。鼠标停在刘海上就展开，五个页签：
+**把 Claude Code / Codex 的会话状态和 AI 配额放进 MacBook 刘海：谁在等你、谁跑完了、额度还剩多少，鼠标一停就知道。**
 
-- **AI**：哪个 Claude Code / Codex 会话在等审批、等输入、刚跑完，点一行跳回它的终端窗口；下面是 Claude / Codex / Cursor / Antigravity 的配额百分比、重置时刻、今日与本周费用。会话行带模型标志与名字（如 Opus 5、gpt-6-astra）。
-- **网络**：网卡吞吐（最近 60 秒折线）、连接（Wi-Fi 信号、本机 IP、网关、DNS）；有代理软件在跑时多一张卡片：认出是谁、端口 / TUN / 模式、一键打开它。
-- **系统**：芯片 / 核心 / 内存 / macOS / 开机时长，电池电量与健康，内存（含内核压力等级）/ CPU / 磁盘，内存大户前三，废纸篓大小与一键清空。
-- **应用**：在跑的 app 按内存排，Dock 里看不见的（菜单栏工具、后台 app）带标记，点行打开，右键退出。
-- **文件架**：把文件拖到刘海上暂存一份副本，拖出去、AirDrop、打开，3 天后自动清理。
+简体中文 | [English](README.en.md)
 
-闭合态纯黑，有事时往下垂提示条：会话跑完一个回合、接电 / 拔电 / 低电 / 充满；摄像头 / 麦克风被占用时标题行画点。标题行有「保持唤醒」按钮。⌥⇧T 开合，两指横滑、三指轻扫或数字键翻页，面板高度跟着内容走；每个功能都有开关，关掉不起监听不占内存；设置在独立窗口。原生 SwiftUI + AppKit，零第三方依赖，macOS 15+，只在带刘海的内建屏上显示。一切数据都在本机，不收集、不上传。
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![dependencies 0](https://img.shields.io/badge/dependencies-0-brightgreen) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
 
-## 跑得起来的条件
+**[⬇ 下载 Tally.dmg](https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg)**
 
-| 项 | 要求 | 卡在哪 |
+</div>
+
+同时开着几个 agent 会话，得不停切窗口看谁在等审批、谁跑完了；配额快见底了也不知道。Tally 把这些收进刘海：平时和刘海融为一体，有事才往下垂一条提示；鼠标停上去就展开成一整块面板。
+
+## 亮点
+
+- **所有会话一眼看清**：Claude Code 和 Codex 的会话按「等你 / 在跑 / 最近」分组，等审批、等输入、压缩上下文、跑完了分得清清楚楚。
+- **状态判得准**：按 Esc 打断、API 报错、主回合结束后子 agent 还在后台跑——这些 hook 不报的情况也判得对，不会一直挂着「忙」。
+- **一下回到终端**：点一行（或 ⌘1–⌘5）直接跳到那个会话所在的终端标签，tmux 里的 pane 也行；关掉的会话点一下就开个新窗口接着聊。
+- **各家配额摆一排**：Claude、Codex、Cursor、Antigravity，加上 DeepSeek、Kimi、智谱 GLM、New API 中转站（默认关，打开才查）；Claude 和 Codex 还有今日 / 本周花费和配速线，照这个速度会不会在重置前用完一眼能看出。配额过 80%、用完会提醒，提醒过的窗口重置了也说一声。
+- **读凭据不打扰**：只读各家登录留下的 token，不刷新、不往钥匙串写，平时不弹授权框。
+- **顺手的小面板**：网速与代理、内存与电池、在跑的 app、文件架（拖到刘海、`open -a Tally <文件>`、新截图自动放进来）、保持唤醒（含合盖不休眠）。
+- **本地、零依赖**：SwiftUI + AppKit 原生实现，没有第三方依赖，没有统计上报。界面目前只有简体中文。
+
+## 五个页面
+
+- **AI**：会话列表 + 各家用量条。会话行带提供方标志和模型名（如 Opus 5、gpt-6-astra）。会话跑完或在等你时，刘海垂一条提示并响一声；面板开着时不提示，会话所在的 Ghostty / Terminal.app / iTerm2 标签正在前台时也不打扰；合盖只剩外接屏时改发系统通知。
+- **网络**：网卡吞吐（最近 60 秒折线）、Wi-Fi 信号、本机 IP、网关、DNS；开着系统代理或代理软件时多一张卡片，认出是哪个代理 app、端口、有没有 TUN（接了 mihomo 内核的控制接口时还显示模式）。
+- **系统**：芯片、内存、CPU、磁盘、开机时长，电池健康，内存大户前三，废纸篓大小与一键清空。
+- **应用**：在跑的 app 按内存排，Dock 里看不见的菜单栏工具和后台 app 带标记，点行打开，右键退出。
+- **文件架**：把文件拖到刘海上暂存一份副本（脚本里 `open -a Tally <文件>`、新截图也能自动放进来），之后拖出去、AirDrop 或打开；放了超过 3 天的，下次打开文件架时清掉。
+
+悬停展开、快捷键、文件架、提示音、配额提醒、各家用量都能在设置里单独关掉；「全屏 app 时隐藏面板」「新截图自动放进文件架」默认关，要用在设置里打开。
+
+## 支持哪些
+
+| Agent | 会话状态 | 跳回终端 | 接着聊 |
+|---|---|---|---|
+| Claude Code | ✓ | ✓ | `claude --resume` |
+| Codex | ✓ | ✓ | `codex resume` |
+
+| 终端 | 点会话行 |
+|---|---|
+| Ghostty、Terminal.app、iTerm2 | 切到那个会话所在的标签 |
+| tmux | 切到那个 pane；外层是 Terminal.app / iTerm2 时连标签一起切，别的终端带到前台 |
+| VS Code、Cursor | 打开会话所在的工程窗口 |
+| Warp、kitty、WezTerm | 只把 app 叫到前台（没有稳定的脚本接口） |
+
+表外的终端点了会提示找不到窗口。「接着聊」回到会话原来的终端开新窗口（Ghostty、Terminal.app、iTerm2；tmux 里开一个新的 tmux 窗口），其余情况装了 Ghostty 用 Ghostty，没装用 Terminal.app。
+
+| 用量 | 配额 | 花费 / 余额 |
 |---|---|---|
-| 系统 | **macOS 15+** | `Info.plist` 的 `LSMinimumSystemVersion = 15.0`；用到 `@Observable`、`Scene.defaultLaunchBehavior`、`onGeometryChange` 这一代 API |
-| 芯片 | **Apple Silicon** | 构建脚本不做 universal，产出的是 arm64 单架构二进制（`lipo -archs` 可验），Intel 机器装不上 |
-| 屏幕 | **带刘海的内建屏** | 面板只挂在 `CGDisplayIsBuiltin` 且 `safeAreaInsets.top > 0` 的屏上——2021 年后的 14 / 16 寸 MacBook Pro、M2 之后的 MacBook Air。别的机器 app 能启动，但面板永远不出现 |
-| 依赖 | 无 | 零第三方依赖，全是系统框架 |
+| Claude | 5 小时、7 天、按模型的周窗口（带配速线） | 今日 / 本周花费 |
+| Codex | 5 小时、7 天（带配速线） | 今日 / 本周花费 |
+| Cursor | 「Cursor 模型」「其他模型」两个池 | — |
+| Antigravity | Gemini、Claude 两个池 | — |
+| DeepSeek | — | 余额 |
+| Kimi | Kimi Code 会员 5 小时、7 天（带配速线） | 开放平台余额 |
+| 智谱 GLM Coding Plan | 5 小时、7 天（带配速线） | — |
+| New API 中转站 | — | 余额 |
 
-要权限的只有三处，不用就不给：点会话行跳回终端要「自动化」授权；「合盖也不休眠」第一次开要一次**管理员密码**（装一条只放行两条 `pmset` 的 sudoers 免密规则，见 [docs/monitors.md](docs/monitors.md)，**非管理员账号用不了这一项**，其余功能不受影响）；查 Claude 配额借 `security` 工具只读 token，不弹框。屏幕录制、摄像头、麦克风一概不要。
+后四家默认关，在设置「用量」里打开。key 先从 Claude Code 设置、Kimi Code、zcode、opencode 里自动找，找不到再手填；智谱的配额接口没有公开文档，改版可能失效。
+
+## 系统要求
+
+- macOS 15 及以上
+- Apple Silicon
+- 带刘海的 MacBook（2021 年起的 14 / 16 英寸 MacBook Pro、M2 及以后的 MacBook Air）。别的 Mac 能启动，但面板不会出现（提醒改发系统通知）
+- 界面为简体中文
 
 ## 安装
 
-```bash
-./scripts/install.sh --build     # 编译 + 装进 /Applications + 启动
-```
-
-或者用 `./scripts/build-dmg.sh` 打成 DMG 给别人：拖进 Applications，首次打开过一次 Gatekeeper（分发那份由 `build-dmg.sh` 重签成 ad-hoc——本机自签的「Tally Dev」证书在别人机器上不受信任，签名验不过会被报「已损坏」，比 ad-hoc 的「无法验证开发者」更吓人），然后在设置窗口点两个「安装」把 Claude Code / Codex 的 hook 注册上；首次点会话行会弹终端自动化授权；查用量不弹框（借 `security` 工具只读 token，不碰钥匙串密码）。**「合盖也不休眠」是唯一会要管理员密码的功能**：不点它就什么都不装，点了会说清楚要装哪条规则、怎么撤（设置窗口「面板」里取消勾选即可），非管理员账号用不了这一项、其余功能不受影响。卸载：设置里点两个「移除」退掉 hook 注册，再删 Tally.app。
-
-## 怎么用
-
-| 动作 | 效果 |
-|---|---|
-| 鼠标停在刘海上 0.15 秒 / 移开 0.3 秒 | 展开 / 收起 |
-| ⌥⇧T | 展开（钉住，不自动收）/ 收起；设置里可关 |
-| 点页签、两指横滑、三指轻扫 | 翻页，记住上次点开的页 |
-| 标题行 ↻ | 刷新当前页（AI 页刷用量，60 秒节流；其余页立刻重采） |
-| 齿轮、右键刘海、展开时 ⌘, | 设置窗口（开机自启、快捷键、hook 安装 / 移除、用量条显示哪几家）与帮助 |
-| 点会话行 | 跳回终端：Ghostty 按目录 + 标题，Terminal.app / iTerm2 按 tty 切 tab，VS Code / Cursor / Warp / kitty / WezTerm 只激活 |
-| 代理卡片「打开 ▸」或双击 | 打开那个代理软件 |
-| 应用页点行 / 右键 | 打开 / 正常退出（等同 ⌘Q，不强杀） |
-| 系统页「清空」 | 确认后永久删 `~/.Trash` 里的东西 |
-
-数据来源：会话来自 Claude Code 与 Codex 的 hook（只有它们有 hook 机制）；用量来自本地日志和各家官方接口，Claude 只读登录留下的 access token，不刷新、不回写；网络、系统、应用页全走 macOS 公开 API（`getifaddrs`、SystemConfiguration、CoreWLAN、sysctl、IOKit 注册表、libproc）。有 mihomo 内核控制接口（Unix socket `/tmp/gauge/core.sock`）的机器上，代理卡片还会列各组当前节点；没有就只显示系统代理那几行。
-
-## 架构
-
-```
-Claude Code / Codex 的 hook ──stdin JSON──▶ Tally.app/Contents/MacOS/tally-hook ──tmp + rename──▶ ~/Library/Application Support/Tally/sessions/<id>.json
-                                                                                                          │ kqueue
-Tally.app（LSUIElement，无 Dock 图标）                                                                      ▼
-  NotchController ── NotchPanel（贴刘海的 NSPanel，level 在菜单栏之上）── NotchView（页签 + 当前页）
-       │ 采样起停                                                          ├─ AIPage：SessionStore + UsageStore
-       │                                                                   ├─ NetworkPage：NetworkStore（InterfaceSampler、ProxyAppDetector、可选 MihomoClient）
-       │                                                                   ├─ SystemPage：SystemStore（SystemSampler、TrashInfo）
-       │                                                                   └─ AppsPage：RunningAppsStore
-  SettingsWindowController ── 设置 / 帮助两个页签 ── HookInstaller（注册 / 移除）
-```
-
-| 目录 | 职责 |
-|---|---|
-| `Sources/TallyKit/` | app 与 hook 共用：`SessionRecord`（状态文件模型、陈旧 / 存活 / 清理判定）、`TranscriptTitle`、`HookDecision`（事件到状态的决策表）、`ProcessTable`（sysctl 找 agent 进程与 tty）、`HookRunner` |
-| `Sources/TallyHook/` | `tally-hook` 的 main：读 stdin、调 HookRunner、永远 exit 0、900 ms 自退 |
-| `Sources/Tally/Notch/` | `NotchPanel`、`NotchGeometry`（尺寸、找内建屏、高度随内容）、`NotchController`（悬停、点外、右键、`--open`、⌥⇧T、⌘,、手势翻页、采样起停）、`HotKeyCenter`、`Theme`（Card / KeyValueRow / MetricBar / TabBar）、四个页 |
-| `Sources/Tally/Sessions/` | `SessionStore`（目录监视）、`TerminalLocator` 与 Ghostty / Terminal.app / iTerm2 三个定位实现 |
-| `Sources/Tally/Usage/` | 移植自 Atoll 的用量核心与四个 provider、`ClaudeLimitsCache`、`ClaudeQuotaReadOnly`、`UsageStore` |
-| `Sources/Tally/Network/` | `InterfaceSampler`（网卡计数、主接口、DNS、Wi-Fi、系统代理、TUN）、`ProxyAppDetector`（端口反查 + 父进程回溯 + 已知名单）、`MihomoClient` / `ChunkedDecoder`（可选内核接口）、`NetworkStore` |
-| `Sources/Tally/System/` | `SystemSampler`（内存 / CPU / 磁盘、压力等级、内存大户、`HardwareInfo`、`BatteryHealth`）、`TrashInfo`、`SystemStore`、`ByteFormat` |
-| `Sources/Tally/Apps/` | `RunningApps`（哪些在跑的 app 列出来、哪些算「Dock 看不见的」）、`RunningAppsStore` |
-| `Sources/Tally/System/KeepAwake.swift`、`BatteryWatcher.swift`、`PrivacyWatcher.swift` | 跟着设置开关起停的小工具与监听：电源断言、电池事件、摄像头 / 麦克风占用（`docs/monitors.md`） |
-| `Sources/Tally/Shelf/` | `ShelfStore`：文件架的索引、副本、缩略图、过期清理（`docs/shelf.md`） |
-| `Sources/Tally/Install/` | `HookInstaller`（两侧注册与移除、Codex 信任哈希、状态）、`HookInstallModel` |
-| `Sources/Tally/Settings/` | `SettingsWindowController`、`HelpPage` |
-| `Resources/` | `Info.plist`、`pricing.json`、`icons/make-icon.swift`（生成 `AppIcon.icns`） |
-| `scripts/` | `build-app.sh` 组装 .app，`install.sh` 装进 /Applications，`build-dmg.sh` 打分发镜像 |
-| `docs/` | 按页面 / 模块分的设计文档，实现以它们为准：[docs/README.md](docs/README.md) |
-
-会话状态文件、事件映射、hook 硬约束在 [docs/ai.md](docs/ai.md)；注册与移除在 [docs/hooks.md](docs/hooks.md)。
-
-## 开发
+**Homebrew**（装完不用再放行）：
 
 ```bash
-swift test                          # 160 个用例，全部要绿；真机相关的用例在环境不满足时跳过
-./scripts/install.sh --build        # 改完必跑，用户用的是 /Applications 里那份
-open -a Tally --args --open ai      # 面板启动即展开到那页且不自动收起（network / system / apps 同理）；--open settings 开设置窗口
-screencapture -R256,0,1000,480 -x /tmp/tally.png    # 14 寸内建屏 1512pt 宽，面板居中 620pt
+brew install --cask aiden-guokuaile/tally/tally
 ```
 
-`pkill -x Tally` 后要等 `pgrep -x Tally` 查不到再 `open -a`，否则参数被旧实例吞掉。hook 与会话文件的验证用 `TALLY_SESSIONS_DIR` 指到临时目录。项目约定在 `.claude/CLAUDE.md`（与 `AGENTS.md` 同文）。
+**或者下载 DMG**：
+
+1. 下载 [Tally.dmg](https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg)，把 Tally 拖进「应用程序」。
+2. 在终端放行一次，再从「应用程序」里打开：
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Tally.app
+   ```
+
+> [!IMPORTANT]
+> Tally 是个人项目，没有 Apple 开发者签名和公证，macOS 默认会拦下来，所以要有第 2 步。不想敲命令的话，先双击打开一次，被拦下后去「系统设置 → 隐私与安全性」最下面点「仍要打开」。提示「已损坏，无法打开」是同一回事，执行上面那条命令即可。
+
+一定从「应用程序」里打开。直接在 DMG 或下载文件夹里运行时，系统会把 app 挪到临时位置，这时设置里不让注册 hook（那个路径重启就失效）。
+
+## 接上 Claude Code 和 Codex
+
+打开设置（面板右上角齿轮，或展开时按 ⌘,）→「hook」→ 两边各点一次「安装」。
+
+- Claude 侧改 `~/.claude/settings.json`，Codex 侧改 `~/.codex/hooks.json` 和 `~/.codex/config.toml`（写入信任哈希）；改之前都备份成 `.tally-backup`，你原有的 hook 不动。设置过 `CLAUDE_CONFIG_DIR` / `CODEX_HOME` 的会装到那里，用量和配额也跟着读那里。
+- Codex 侧安装要用到本机的 `codex` 命令。
+- 装之前就开着的会话要重开一次才会挂上，Codex 只在启动时读 hook。
+- 装好后每一侧下面显示「最近收到事件」；一直显示「还没收到过」时点「自检」，能看出是 hook 本身跑不起来，还是 agent 没在调它。
+
+## 快捷操作
+
+| 操作 | 效果 |
+|---|---|
+| 鼠标停在刘海上 / 移开 | 展开 / 收起 |
+| ⌥⇧T | 展开并钉住 / 收起 |
+| 两指横滑、三指轻扫、数字键 1–9 | 翻页 |
+| ⌘1–⌘5 | 跳到第 N 个会话，按住 ⌘ 显示编号 |
+| 齿轮、展开时按 ⌘, | 设置 |
+| 右键收起的刘海 | 菜单：设置、刷新用量、退出 |
+
+## 权限与隐私
+
+**用到时才会问的权限**
+
+- **自动化（控制终端）**：跳回终端、接着聊、判断会话标签是否在前台。第一次控制某个终端时系统问一次。
+- **管理员密码**：只跟「合盖也不休眠」有关。第一次打开时装一条 `/etc/sudoers.d/tally` 免密规则，只放行开 / 关休眠的两条 `pmset` 和删掉这条规则自己；另外，启动时发现合盖不休眠开着、又不是 Tally 开的，会给一个「恢复」按钮，点它要输一次密码。
+- **钥匙串**：各家登录凭据只读，取值走系统自带的 `security` 工具，平时不弹框。Codex、Cursor、Antigravity 平时读本地文件或本地服务，钥匙串只作兜底。
+- **通知**：只在没有刘海屏（合盖接外接屏）、第一次要发提醒时问。
+- **文件夹访问**：打开「新截图自动放进文件架」时，在选择面板里点一下截图文件夹；桌面受隐私保护，点这一下就是授权，不另弹框。
+
+**不会申请**：屏幕录制、摄像头、麦克风（占用提示只读设备状态）、辅助功能、定位、完全磁盘访问。
+
+**数据**：会话、日志统计、设置都留在本机，没有统计上报，也没有自动更新。对外联网只有两件事：向各家官方接口查配额和余额（Anthropic、OpenAI（ChatGPT）、Cursor、Google（Antigravity），以及打开了才连的 DeepSeek、Kimi / Moonshot、智谱 / Z.ai 和你填的 New API 站点；不想连哪家就在设置「用量」里关掉）；手填的 key 只存在本机 `~/Library/Application Support/Tally/providers.json`（权限 600）；每天问一次 GitHub 有没有新版本（设置「通用」里可关，只提示，不自动下载替换）。
+
+## 工作原理
+
+```
+Claude Code / Codex ──hook──▶ tally-hook ──▶ ~/Library/Application Support/Tally/sessions/<id>.json ──▶ 刘海面板
+                                                                                            ▲
+                                        transcript、Claude Code 自己的会话状态（补判打断与报错）
+```
+
+hook 只往本地写两样东西：会话状态文件，和一份「最近收到的事件」（给自检用），写完立即退出，从不拦 agent。面板盯着会话目录更新；hook 报不出来的情况（打断、报错），再读 transcript 和 Claude Code 自己的状态补判。配额来自本地日志和各家接口。设计细节见 [docs/](docs/README.md)。
+
+## 常见问题
+
+- **面板不出现**：只在带刘海的内建屏上显示；合盖或只用外接显示器时会隐藏（提醒改发系统通知）。开了「全屏 app 时隐藏面板」的话，全屏 app 里也不出现。
+- **全屏看视频时不想看到刘海面板**：设置「面板」打开「全屏 app 时隐藏面板」。只认系统全屏（绿色按钮、⌃⌘F）。
+- **提示「已损坏」或「无法验证开发者」**：见「安装」第 2 步。
+- **会话列表是空的**：先到设置「hook」看是不是已安装、有没有「最近收到事件」；装之前开着的会话要重开；还不行就点「自检」。
+- **点会话行提示「要允许 Tally 控制 ××」**：去「系统设置 → 隐私与安全性 → 自动化」，打开 Tally 下面对应的开关。找不到开关时执行 `tccutil reset AppleEvents com.aiden.tally`，再点一次让系统重新问。
+- **只把终端叫到前台、没切到那个标签**：Warp、kitty、WezTerm 没有稳定的脚本接口，只能做到这一步。
+- **配额显示「登录已过期」**：去 Claude Code 或 Codex 里跑一轮，让它自己刷新登录。Tally 不刷新 token。
+- **百分比后面带「~」**：这一轮没取到新读数，显示的是之前的值。
+
+## 卸载
+
+1. 设置「hook」里两边各点「移除」，只删 Tally 自己的那几条。
+2. 开过「开机自启」的，先在设置「通用」里关掉；开过「合盖也不休眠」的，在设置「面板」里取消「合盖不休眠的免密规则」。
+3. 退出 Tally，把 `Tally.app` 拖进废纸篓。
+4. 想清干净，再删 `~/Library/Application Support/Tally/`。
+
+用 Homebrew 装的：第 1 步照做，第 3、4 步换成 `brew uninstall --zap --cask tally`（连数据目录和开机自启一起清）。
+
+## 从源码构建
+
+需要 Xcode 16 及以上（Swift 6 工具链），以及一张代码签名证书：钥匙串访问 → 证书助理 → 创建证书，名称填 `Tally Dev`，身份类型「自签名根证书」，证书类型「代码签名」。已有别的证书可以 `export TALLY_SIGN_IDENTITY="证书名"`。固定签名身份是为了让「自动化」授权在重新编译后依然有效。
+
+```bash
+git clone https://github.com/Aiden-Guokuaile/tally.git
+cd tally
+swift test
+./scripts/install.sh --build    # 编译、签名、装进 /Applications 并启动
+```
+
+开发约定、目录结构和调试方法见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 致谢
+
+- [Atoll](https://github.com/Ebullioscopic/Atoll)：用量数据层移植自它（GPL-3.0），文件清单见 [NOTICE](NOTICE)。
+- [NotchDrop](https://github.com/Lakr233/NotchDrop)：文件架的交互参考了它，代码是重写的。
+- [Lobe Icons](https://github.com/lobehub/lobe-icons)：提供方标志（MIT），取自 [Pulse](https://github.com/qunqin24/Pulse) 整理的版本。
+- 借鉴过的做法：[vibe-notch](https://github.com/farouqaldori/vibe-notch) 与 [CodeIsland](https://github.com/wxtsky/CodeIsland)（终端标签在前台时不提示）、[codenotch](https://github.com/vinzdg/codenotch)（读 Claude Code 自己的会话状态、429 退避）、[codex-island](https://github.com/ericjypark/codex-island)（睡醒后缓一分钟再查配额）。
 
 ## 许可
 
-GPL-3（`LICENSE`）。用量数据层移植自 [Atoll](https://github.com/Ebullioscopic/Atoll)（GPL-3.0），15 个文件的清单在 `NOTICE`，标「不改」的文件除文件头外逐字未动。
+[GPL-3.0](LICENSE)。Claude、OpenAI、Codex、Cursor、Antigravity 的名称与标志归各自所有者，Tally 只用它们标明是哪家的会话与用量；Tally 是个人项目，与 Anthropic、OpenAI、Anysphere、Google 均无关联。

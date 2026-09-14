@@ -6,6 +6,8 @@ enum BackendKind: Equatable {
     case ghostty
     case terminalApp
     case iterm
+    /// tmux：按 pane 的 tty 找，切过去再把客户端所在的终端带到前台。
+    case tmux
     /// 编辑器：没有能定位到某个终端标签的脚本接口，退而求其次用它打开会话目录。
     case editor(bundleId: String, name: String)
     /// 没有稳定脚本接口的终端：只把 app 激活。
@@ -33,6 +35,7 @@ enum TerminalLocator {
         case nil, "", "ghostty": return .ghostty
         case "Apple_Terminal": return .terminalApp
         case "iTerm.app": return .iterm
+        case "tmux": return .tmux
         case "vscode":
             // Cursor 也报 vscode：谁在跑用谁，都没跑就让执行层抛「没在跑」
             if running(vscode) { return .editor(bundleId: vscode, name: "VS Code") }
@@ -69,6 +72,8 @@ enum TerminalLocator {
             try await TerminalAppLocator.focus(tty: session.tty)
         case .iterm:
             try await ITermLocator.focus(tty: session.tty)
+        case .tmux:
+            try await TmuxLocator.focus(session: session)
         case .editor(let bundleId, let name):
             // 编辑器定位不到具体的终端标签，就用它打开会话目录：对应那个工程的窗口会被带到前台。
             // 不用 NSRunningApplication.activate()：后台 app 调它会被协作激活规则挡掉，点了没反应。

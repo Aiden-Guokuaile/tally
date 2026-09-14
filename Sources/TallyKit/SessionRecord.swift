@@ -7,7 +7,11 @@ public struct SessionRecord: Codable, Equatable, Identifiable {
         case running
         case waitingPermission = "waiting_permission"
         case waitingInput = "waiting_input"
+        /// 在压缩上下文（PreCompact）：长会话要几十秒，不标出来看着像卡住。
+        case compacting
         case done
+        /// 会话已关闭（交互会话的 SessionEnd，或进程没了），留一行给人接着聊。
+        case ended
     }
 
     public var sessionId: String
@@ -127,9 +131,34 @@ public struct SessionRecord: Codable, Equatable, Identifiable {
         state == .waitingPermission || state == .waitingInput
     }
 
-    /// 非 done 且两小时没动静。done 的会话只是跑完了，不算失联。
+    /// 非 done / ended 且两小时没动静。跑完了、关掉了的会话不算失联。
     public func isStale(now: Date) -> Bool {
-        state != .done && now.timeIntervalSince(updatedDate) > 2 * 3600
+        state != .done && state != .ended && now.timeIntervalSince(updatedDate) > 2 * 3600
+    }
+
+    /// 会话列表的三组，按原始值从小到大排。
+    public enum Group: Int, CaseIterable {
+        case waiting, working, recent
+    }
+
+    public func group(now: Date) -> Group {
+        if isStale(now: now) { return .recent }
+        switch state {
+        case .waitingPermission, .waitingInput: return .waiting
+        case .running, .compacting: return .working
+        case .done, .ended: return .recent
+        }
+    }
+
+    /// 列表的显示顺序：等你 → 在跑 → 最近，组内按 updated_at 倒序，已关闭的排在最近组末尾。⌘1–⌘5 也按它数。
+    public static func displayOrder(_ sessions: [SessionRecord], now: Date) -> [SessionRecord] {
+        sessions.sorted { a, b in
+            let ga = a.group(now: now), gb = b.group(now: now)
+            if ga != gb { return ga.rawValue < gb.rawValue }
+            if (a.state == .ended) != (b.state == .ended) { return b.state == .ended }
+            if a.updatedAt != b.updatedAt { return a.updatedAt > b.updatedAt }
+            return a.sessionId < b.sessionId
+        }
     }
 
     /// 闭合态徽标计数用：在等我，且没失联。
@@ -155,8 +184,17 @@ public struct SessionRecord: Codable, Equatable, Identifiable {
         return kill(pid_t(pid), 0) == -1 && errno == ESRCH
     }
 
-    public static var claudeSessionsDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/sessions")
+    /// Claude Code 的家：`CLAUDE_CONFIG_DIR` 设了就是它，没有就 `~/.claude`。hook 从 Claude Code 继承环境，直接看得到；
+    /// app 的环境里没有，由 app 里的 `ClaudeHome` 问登录 shell 再传进来。
+    public static func claudeHome(configDir: String?) -> URL {
+        guard let configDir, !configDir.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude")
+        }
+        return URL(fileURLWithPath: (configDir as NSString).expandingTildeInPath)
+    }
+
+    public static func claudeSessionsDirectory(configDir: String?) -> URL {
+        claudeHome(configDir: configDir).appendingPathComponent("sessions")
     }
 
     /// Claude Code 自己维护的 `<pid>.json` 里 `status` 是 busy / waiting / idle：回合一结束就写 idle，

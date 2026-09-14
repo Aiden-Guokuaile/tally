@@ -127,7 +127,8 @@ struct PageTitle: View {
     private var detail: String {
         switch page {
         case .ai, .settings:
-            return PageSummary.ai(sessions: sessions.sessions.count, waiting: sessions.waitingCount())
+            // 已关闭的只是留着接着聊，不算「会话」
+            return PageSummary.ai(sessions: sessions.sessions.filter { $0.state != .ended }.count, waiting: sessions.waitingCount())
         case .network:
             return PageSummary.network(interface: network.primary.map { $0.wifi == nil ? "有线 \($0.name)" : "Wi-Fi \($0.name)" },
                                        down: network.down.map(ByteFormat.rate), up: network.up.map(ByteFormat.rate))
@@ -394,6 +395,21 @@ private struct PeekIcon: View {
             Image(systemName: "battery.25percent")
                 .symbolEffect(.pulse, options: .repeating.speed(1.4))
                 .symbolEffect(.wiggle, options: .repeating.speed(0.6))
+        case .quotaHigh:
+            Image(systemName: "gauge.with.dots.needle.67percent")
+                .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
+        case .quotaExhausted:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .symbolEffect(.pulse, options: .repeating.speed(1.2))
+        case .quotaReset:
+            Image(systemName: "arrow.clockwise")
+                .symbolEffect(.rotate, options: .nonRepeating, value: appeared)
+        case .shelf:
+            Image(systemName: "tray.and.arrow.down.fill")
+                .symbolEffect(.bounce.down, options: .nonRepeating, value: appeared)
+        case .update:
+            Image(systemName: "arrow.down.circle.fill")
+                .symbolEffect(.bounce, options: .nonRepeating, value: appeared)
         case .full:
             ZStack {
                 Image(systemName: "battery.100percent")

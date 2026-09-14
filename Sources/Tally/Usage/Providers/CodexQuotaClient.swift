@@ -1,13 +1,19 @@
 // 移植自 Atoll（https://github.com/Ebullioscopic/Atoll），Copyright (C) 2024-2026 Atoll Contributors，GPL-3.0，见仓库 LICENSE 与 NOTICE。
-// Tally 改动：按 limit_window_seconds 把窗口分到 5 小时 / 7 天两个槽，而不是按 primary / secondary 的次序硬套（头部兜底同样按 window-minutes 分）；401 / 403 带回一句给界面看的提示，不然登录过期时只是静默少两条配额；请求超时 10 秒。
+// Tally 改动：按 limit_window_seconds 把窗口分到 5 小时 / 7 天两个槽，而不是按 primary / secondary 的次序硬套（头部兜底同样按 window-minutes 分）；401 / 403 带回一句给界面看的提示，不然登录过期时只是静默少两条配额；请求超时 10 秒；429 按接口退避（QuotaBackoff）。
 import Foundation
 import os
 
 // Codex/ChatGPT rate-limit usage from chatgpt.com/backend-api/wham/usage; request+response shape per OpenUsage.
 struct CodexQuotaClient {
     private static let log = os.Logger(subsystem: "com.aiden.tally", category: "CodexQuota")
+    static let backoffKey = "codex-wham-usage"
     let session: URLSession
-    init(session: URLSession = URLSession(configuration: .ephemeral)) { self.session = session }
+    /// 429 之后按接口退避；真 app 传落盘的 `QuotaBackoff.shared`。
+    let backoff: QuotaBackoff
+    init(session: URLSession = URLSession(configuration: .ephemeral), backoff: QuotaBackoff = QuotaBackoff()) {
+        self.session = session
+        self.backoff = backoff
+    }
 
     private struct AuthFile: Decodable {
         struct Tokens: Decodable {
@@ -39,6 +45,8 @@ struct CodexQuotaClient {
             Self.log.notice("no credentials: auth.json/Keychain missing or unparseable")
             return (nil, nil, nil)
         }
+        // 429 退避期间不打接口
+        guard backoff.allows(Self.backoffKey, now: Date()) else { return (nil, nil, nil) }
         var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
         // 默认 60 秒：代理卡住时这一行要「加载中」一分钟，和 Claude 那边一样钉 10 秒
         request.timeoutInterval = 10
@@ -52,9 +60,13 @@ struct CodexQuotaClient {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                if code == 429, let http = response as? HTTPURLResponse {
+                    backoff.throttled(Self.backoffKey, now: Date(), retryAfter: QuotaBackoff.retryAfter(http))
+                }
                 Self.log.error("wham/usage HTTP \(code) — \(code == 401 || code == 403 ? "auth/credential" : "request") failure")
                 return (nil, nil, Self.authNote(status: code))
             }
+            backoff.succeeded(Self.backoffKey)
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let now = Date()

@@ -70,7 +70,7 @@ enum PeekTapAction: String, CaseIterable {
 
 /// 闭合态提示条里的内容：着色图标 + 短标签 + 标题 + 副标题。会话事件和电池事件都走它；`style` 决定图标怎么动，`sessionId` 非空时可点。
 struct Peek: Equatable {
-    enum Style { case session, ask, pluggedIn, unplugged, low, full }
+    enum Style { case session, ask, pluggedIn, unplugged, low, full, quotaHigh, quotaExhausted, quotaReset, shelf, update }
 
     var id: String
     var style: Style
@@ -87,8 +87,21 @@ struct Peek: Equatable {
     func duration(session: Int, battery: Int) -> TimeInterval {
         switch style {
         case .ask: return TimeInterval(session) + Self.askExtra
-        case .session: return TimeInterval(session)
+        case .session, .quotaHigh, .quotaExhausted, .quotaReset, .update: return TimeInterval(session)
         default: return TimeInterval(battery)
+        }
+    }
+
+    /// 没有刘海屏时改发系统通知的那几种：电池的不发，系统自己会说。
+    var notifiesWithoutNotch: Bool { priority > 0 }
+
+    /// 抢占顺序：等你 > 跑完 > 配额、文件架 > 电池。低的不顶掉正挂着的高的（`PeekQueue`）。
+    var priority: Int {
+        switch style {
+        case .ask: return 3
+        case .session: return 2
+        case .quotaHigh, .quotaExhausted, .quotaReset, .shelf, .update: return 1
+        case .pluggedIn, .unplugged, .low, .full: return 0
         }
     }
 
@@ -138,6 +151,39 @@ struct Peek: Equatable {
         }
     }
 
+    /// 配额涨过 80%（橙）、用完（红）、重置（绿）。不可点。
+    static func quota(_ event: QuotaEvent, now: Date = Date()) -> Peek {
+        let id = "quota-\(event.provider.rawValue)-\(event.window)-\(Int(now.timeIntervalSince1970 * 1000))"
+        let title = "\(event.provider.displayName) · \(event.window)"
+        let reset = ResetLabel.text(for: event.resetsAt, now: now)
+        switch event.kind {
+        case .high(let percent):
+            return Peek(id: id, style: .quotaHigh, tint: .orange, label: "配额 \(percent)%", title: title,
+                        subtitle: ["已用 \(percent)%", reset].compactMap { $0 }.joined(separator: " · "))
+        case .exhausted:
+            return Peek(id: id, style: .quotaExhausted, tint: .red, label: "配额用完", title: title,
+                        subtitle: ["用完了", reset].compactMap { $0 }.joined(separator: " · "))
+        case .reset:
+            return Peek(id: id, style: .quotaReset, tint: .green, label: "配额重置", title: title, subtitle: "重置了，又能用了")
+        }
+    }
+
+    /// 有新版本。不可点：brew 装的直接给升级命令，别的指到设置里的下载按钮。
+    static func update(_ version: String) -> Peek {
+        Peek(id: "update-\(version)", style: .update, tint: .blue, label: "有新版本", title: "Tally \(version)",
+             subtitle: UpdateChecker.installedByHomebrew() ? "brew upgrade --cask tally" : "设置 → 通用 里下载")
+    }
+
+    /// `open -a Tally <文件>` 放进文件架。不可点；文件架关着就说一声，不偷偷打开开关。
+    static func shelf(names: [String], enabled: Bool, now: Date = Date()) -> Peek {
+        let id = "shelf-\(Int(now.timeIntervalSince1970 * 1000))"
+        let title = names.count == 1 ? names[0] : "\(names.count) 个文件"
+        guard enabled else {
+            return Peek(id: id, style: .shelf, tint: .orange, label: "文件架没开", title: title, subtitle: "设置 → 文件架 打开后再放")
+        }
+        return Peek(id: id, style: .shelf, tint: .mint, label: "放进文件架", title: title, subtitle: "展开面板到文件架取用")
+    }
+
     /// 电源文案：把电池当成一个会说话的小家伙。
     static func battery(_ event: BatteryEvent, now: Date = Date()) -> Peek {
         let id = "battery-\(Int(now.timeIntervalSince1970 * 1000))"
@@ -153,6 +199,25 @@ struct Peek: Equatable {
         case .full:
             return Peek(id: id, style: .full, tint: .green, label: "吃饱了", title: "100%", subtitle: "电池：拔吧，撑着了")
         }
+    }
+}
+
+/// 新提示来时怎么排，纯函数。不然一条电池提示能把「等输入」顶掉，人就错过了。
+enum PeekQueue {
+    enum Decision: Equatable { case show, wait }
+
+    /// 没有正挂着的、比它高、或是同一个会话的新状态（等输入之后跑完了，不留过时的那条）→ 马上换上；否则排队。
+    /// 一样高也排队：两个会话前后脚都在等审批，后来的顶掉先来的，先来的那个就再没人提醒了。
+    static func decide(incoming: Peek, showing: Peek?) -> Decision {
+        guard let showing else { return .show }
+        if incoming.sessionId != nil, incoming.sessionId == showing.sessionId { return .show }
+        return incoming.priority > showing.priority ? .show : .wait
+    }
+
+    /// 队里只留一条：留优先级高的，一样高留新的。
+    static func keep(_ incoming: Peek, over pending: Peek?) -> Peek {
+        guard let pending, pending.priority > incoming.priority else { return incoming }
+        return pending
     }
 }
 
@@ -174,6 +239,8 @@ final class NotchController {
     /// 面板在光标脚下缩小之前的 frame：切到矮的页时光标会突然落在面板外，还在这块老区域里就不算离开。
     private var shrunkFrom: CGRect?
     private var peekTimer: Timer?
+    /// 被正挂着的高优先级提示挡住、等它收回再垂的那一条。
+    private var pendingPeek: Peek?
     private var outsideClickMonitor: Any?
     private var gestureMonitor: Any?
     private var keyMonitor: Any?
@@ -218,13 +285,28 @@ final class NotchController {
             guard let self, self.state.isOpen else { return }
             self.applyFrame(animated: true)
         }
-        SessionStore.shared.sessionAlert = { [weak self] record in self?.showPeek(.session(record)) }
+        SessionStore.shared.sessionAlert = { [weak self] record in Task { await self?.sessionAlerted(record) } }
+        UsageStore.shared.quotaAlert = { [weak self] event in
+            guard PreferencesStore.shared.prefs.quotaPeek else { return }
+            self?.showPeek(.quota(event))
+        }
         state.peekContentWidthChanged = { [weak self] in
             guard let self, !self.state.isOpen, self.state.peek != nil else { return }
             self.applyFrame(animated: true)
         }
         state.peekTapped = { [weak self] in self?.peekTapped() }
         BatteryWatcher.shared.onEvent = { [weak self] event in self?.showPeek(.battery(event)) }
+        ScreenshotWatcher.shared.onScreenshots = { [weak self] urls in self?.receiveFiles(urls) }
+        // 同一个版本只在刘海里说一次；设置「通用」那一行一直在
+        UpdateChecker.shared.onNewVersion = { [weak self] release in
+            guard PreferencesStore.shared.prefs.updateNotifiedVersion != release.version else { return }
+            PreferencesStore.shared.prefs.updateNotifiedVersion = release.version
+            self?.showPeek(.update(release.version))
+        }
+        SystemNotifier.shared.onTapSession = { sessionId in
+            guard let session = SessionStore.shared.sessions.first(where: { $0.sessionId == sessionId }) else { return }
+            Task { await SessionJump.shared.run(session) }
+        }
         HotKeyCenter.shared.setHandler { [weak self] in self?.toggle() }
         HotKeyCenter.shared.setEnabled(PreferencesStore.shared.prefs.hotKeyEnabled)
         PreferencesStore.shared.onChange = { [weak self] in self?.applyPreferences() }
@@ -252,6 +334,14 @@ final class NotchController {
         ShelfStore.shared.setEnabled(prefs.shelfEnabled)
         if !prefs.shelfEnabled, state.page == .shelf { state.select(.ai) }
         if !prefs.keepAwakeButton { KeepAwake.shared.stop() }
+        UpdateChecker.shared.setEnabled(prefs.checkUpdates)
+        if prefs.shelfEnabled, prefs.screenshotsToShelf, let folder = prefs.screenshotFolder {
+            ScreenshotWatcher.shared.start(folder: URL(fileURLWithPath: folder, isDirectory: true))
+        } else {
+            ScreenshotWatcher.shared.stop()
+        }
+        // 集合行为对已经在屏幕上的窗口要重新上屏才生效；没有刘海屏时面板本来就不在屏上，不去叫它出来
+        if panel.setShowsInFullScreen(!prefs.hideInFullScreen), metrics != nil { panel.orderFrontRegardless() }
     }
 
     // MARK: 定位
@@ -345,6 +435,7 @@ final class NotchController {
         removeOutsideClickMonitor()
         removeGestureMonitor()
         removeKeyMonitor()
+        SessionJump.shared.shortcutHints = false
         // open() 里 makeKey 之后键盘焦点归 Tally 进程（非激活面板不激活也能收键盘）；不交还的话面板缩回刘海了，
         // 之后打的字照样全进它，直到用户点一下别处。探针实测 resignKey 能把焦点还给原来的 app，再 makeKey 照常拿回
         if panel.isKeyWindow { panel.resignKey() }
@@ -358,9 +449,18 @@ final class NotchController {
     // MARK: 完成提示
 
     /// 面板闭合时弹提示：提示条垂下几秒再收回（时长 `Peek.duration(session:battery:)`，秒数在设置里）；
-    /// 连着来就换成新的并重新计时。
+    /// 连着来按 `PeekQueue` 排：比正挂着的高就换成新的并重新计时，一样高或更低的等它收回再垂。
     private func showPeek(_ peek: Peek) {
         guard !state.isOpen else { return }
+        // 没有刘海屏（合盖接外接屏）提示条画不出来：改发系统通知，不然会话提醒只剩一声响
+        guard metrics != nil else {
+            if PreferencesStore.shared.prefs.notifyWithoutNotch, peek.notifiesWithoutNotch { SystemNotifier.shared.post(peek) }
+            return
+        }
+        guard PeekQueue.decide(incoming: peek, showing: state.peek) == .show else {
+            pendingPeek = PeekQueue.keep(peek, over: pendingPeek)
+            return
+        }
         peekTimer?.invalidate()
         state.peekContentWidth = 0
         state.peek = peek
@@ -371,18 +471,42 @@ final class NotchController {
             Task { @MainActor in
                 guard let self, self.state.peek != nil else { return }
                 let heldHover = Peek.holdsHoverOpen(self.state.peek)
+                // clearPeek 会连队里那条一起丢，先取出来
+                let next = self.pendingPeek
                 self.clearPeek()
-                self.applyFrame(animated: true)
+                if let next {
+                    self.showPeek(next)
+                } else {
+                    self.applyFrame(animated: true)
+                }
                 // 提示条挂着时拦下了悬停展开，收回这一刻光标还在面板上就补一次：
                 // 追踪区只在光标真正跨界时发 mouseEntered，光标不动就再也不发了
-                if heldHover, self.panel.frame.contains(NSEvent.mouseLocation) { self.hoverStarted() }
+                if heldHover, !Peek.holdsHoverOpen(self.state.peek), self.panel.frame.contains(NSEvent.mouseLocation) { self.hoverStarted() }
             }
         }
     }
 
+    /// `open -a Tally <文件>`：照拖进来一样复制进文件架，闭合态弹一下说放了什么。
+    func receiveFiles(_ urls: [URL]) {
+        let enabled = PreferencesStore.shared.prefs.shelfEnabled
+        showPeek(.shelf(names: urls.map(\.lastPathComponent), enabled: enabled))
+        guard enabled else { return }
+        Task { await ShelfStore.shared.add(urls: urls) }
+    }
+
+    /// 会话提示：那个会话的终端标签就在前台时不响也不弹（人正看着它）；不然按设置响一声，再垂提示条。
+    private func sessionAlerted(_ record: SessionRecord) async {
+        guard !state.isOpen else { return }
+        if await SessionFrontmost.check(record) { return }
+        if PreferencesStore.shared.prefs.sessionSound { AlertSound.play(for: record.state) }
+        showPeek(.session(record))
+    }
+
+    /// 连队里那条一起丢：展开面板、点了提示条，人已经在看了，过会儿再垂一条旧消息只会添乱。
     private func clearPeek() {
         peekTimer?.invalidate()
         peekTimer = nil
+        pendingPeek = nil
         state.peek = nil
         state.peekContentWidth = 0
     }
@@ -530,9 +654,15 @@ final class NotchController {
     /// 面板是 key window 但 app 不激活，主菜单的 ⌘, 收不到；展开期间自己接，顺带接数字键切页签、⌘1–⌘5 跳会话。
     private func installKeyMonitor() {
         removeKeyMonitor()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
             guard let self, event.window === self.panel else { return event }
             let prefs = PreferencesStore.shared.prefs
+            if event.type == .flagsChanged {
+                // 按住 ⌘ 时会话行尾浮出 ⌘1–⌘5，松开消失；修饰键事件原样放行
+                SessionJump.shared.shortcutHints = prefs.sessionCommandKeys
+                    && event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command
+                return event
+            }
             switch PanelKey.action(keyCode: event.keyCode, modifiers: event.modifierFlags,
                                    pageKeys: prefs.pageNumberKeys, sessionKeys: prefs.sessionCommandKeys) {
             case .settings:
@@ -553,7 +683,8 @@ final class NotchController {
     /// ⌘1–⌘5：跳到会话列表第 N 行的终端，和点那一行一样：面板照旧开着、鼠标移出才收（终端被叫到前台，键盘跟着过去）。
     /// 跳不成就切到 AI 页，那一行红字说为什么——从别的页按的话，不切过去看不到原因。
     private func jumpToSession(at index: Int) {
-        let sessions = SessionStore.shared.sessions
+        // 按分组后的显示顺序数，和行尾的 ⌘N 编号一致
+        let sessions = SessionRecord.displayOrder(SessionStore.shared.sessions, now: Date())
         guard sessions.indices.contains(index) else { return }
         let session = sessions[index]
         Task { [weak self] in

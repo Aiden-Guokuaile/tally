@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 「AI」页：上半是会话卡片，下半是四家用量的单行条卡片。
+/// 「AI」页：上半是会话卡片，下半是各家用量的单行条卡片。
 struct AIPage: View {
     var store = SessionStore.shared
     var usage = UsageStore.shared
@@ -56,7 +56,7 @@ struct UsageStripRow: View {
                 HStack(spacing: 8) {
                     Color.clear.frame(width: 150, height: 1)
                     ForEach(scopedLimits, id: \.label) { scoped in
-                        QuotaBar(label: scoped.label, limit: scoped.limit, stale: snapshot.limitsStale, now: now)
+                        QuotaBar(label: scoped.label, limit: scoped.limit, stale: snapshot.limitsStale, now: now, window: provider.limitWindows.week)
                     }
                     Spacer(minLength: 0)
                 }
@@ -82,7 +82,8 @@ struct UsageStripRow: View {
                             .background(Capsule().fill(.white.opacity(0.8)))
                     }
                 }
-                if case .success(let snapshot) = result, !snapshot.today.isPercentage {
+                // 只有 Claude、Codex 有本地日志算出来的花费；别家画「$0.00」会让人以为真没花钱
+                if case .success(let snapshot) = result, provider.reportsSpend {
                     UsageFigures(today: snapshot.today, week: snapshot.week)
                 }
             }
@@ -98,10 +99,13 @@ struct UsageStripRow: View {
             case .success(let snapshot):
                 // 过了重置时间的窗口不画：下一轮刷新之前那几分钟，手里的百分比说的还是上一个窗口
                 if let limit = snapshot.sessionLimit, !limit.isExpired(at: now) {
-                    QuotaBar(label: provider.stripLabels.session, limit: limit, stale: snapshot.limitsStale, now: now)
+                    QuotaBar(label: provider.stripLabels.session, limit: limit, stale: snapshot.limitsStale, now: now, window: provider.limitWindows.session)
                 }
                 if let limit = snapshot.weekLimit, !limit.isExpired(at: now) {
-                    QuotaBar(label: provider.stripLabels.week, limit: limit, stale: snapshot.limitsStale, now: now)
+                    QuotaBar(label: provider.stripLabels.week, limit: limit, stale: snapshot.limitsStale, now: now, window: provider.limitWindows.week)
+                }
+                ForEach(Array(snapshot.balances.enumerated()), id: \.offset) { _, balance in
+                    BalanceLabel(balance: balance)
                 }
                 if let note = snapshot.limitsNote {
                     Text(note).font(.system(size: 9)).foregroundStyle(.red).lineLimit(1)

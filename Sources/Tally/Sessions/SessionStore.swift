@@ -27,11 +27,18 @@ final class SessionStore {
     /// 整文件扫过一次的会话，不管有没有找到都记着，别反复扫几 MB 的文件。
     private var fullScanTitles: [String: String?] = [:]
 
+    /// 已关闭的会话最多留几条：一天开关几十个会话的话，列表会被它们挤满。
+    static let maxEnded = 5
+    /// 设置里「保留已关闭的会话」；测试注入。
+    private let keepClosed: () -> Bool
+
     /// 单例整个进程周期都活着，不需要 deinit 里收 source。
     init(directory: URL = PreferencesStore.directory.appendingPathComponent("sessions"),
-         claudeSessions: URL = SessionRecord.claudeSessionsDirectory) {
+         claudeSessions: URL = ClaudeHome.url.appendingPathComponent("sessions"),
+         keepClosed: (() -> Bool)? = nil) {
         self.directory = directory
         self.claudeSessions = claudeSessions
+        self.keepClosed = keepClosed ?? { PreferencesStore.shared.prefs.keepClosedSessions }
     }
 
     // MARK: 启动
@@ -98,21 +105,43 @@ final class SessionStore {
             guard let data = try? Data(contentsOf: file),
                   var record = try? decoder.decode(SessionRecord.self, from: data)
             else { continue }
-            // 进程没了就是会话没了：终端被直接关掉时 SessionEnd 不会来。
-            if record.processIsGone {
-                try? FileManager.default.removeItem(at: file)
-                Log.debug("会话 \(record.sessionId) 的进程已退出，删掉状态文件")
-                continue
+            if record.state == .ended {
+                // 已关闭的本来就没有进程，不走下面的存活判断；开关关着就删
+                guard keepClosed() else {
+                    try? FileManager.default.removeItem(at: file)
+                    continue
+                }
+            } else if record.processIsGone {
+                // 进程没了就是会话没了：终端被直接关掉时 SessionEnd 不会来。交互会话改成已关闭留着接着聊——
+                // 进程已经没了，改文件不会和 hook 抢着写；脚本里跑的 claude -p / codex exec 直接删
+                guard keepClosed(), !record.transcriptPath.isEmpty,
+                      TranscriptTitle.isInteractive(transcript: URL(fileURLWithPath: record.transcriptPath), provider: record.provider)
+                else {
+                    try? FileManager.default.removeItem(at: file)
+                    Log.debug("会话 \(record.sessionId) 的进程已退出，删掉状态文件")
+                    continue
+                }
+                record.state = .ended
+                record.message = nil
+                record.updatedAt = (Date().timeIntervalSince1970 * 1000).rounded()
+                do {
+                    try JSONEncoder().encode(record).write(to: file, options: .atomic)
+                } catch {
+                    // 写不进去就只在内存里算已关闭，下一轮读目录再试
+                    Log.error("会话 \(record.sessionId) 改成已关闭没写进去: \(error.localizedDescription)")
+                }
             }
             if record.title == nil {
                 record.title = resolveTitle(for: record)
             }
             // 打断和 API 报错结束的回合不发 Stop，文件停在 running / 等审批 / 等输入：补判成 done（docs/ai.md「打断与 API 报错」）。
             // 只改内存不回写：回写会和 hook 抢，刚判完用户就发了下一句的话，app 写的 done 会盖掉 hook 写的 running。
-            if record.isClaude, record.state != .done {
-                let end = record.transcriptPath.isEmpty ? nil : TranscriptTitle.turnEnd(in: URL(fileURLWithPath: record.transcriptPath))
-                // 等输入不看 status：elicitation 对话框是回合中途等人，那时写不写 idle 没验证过；idle_prompt 那种 hook 已经不写成等输入
-                if end != nil || (record.state != .waitingInput && record.claudeCodeReportsIdle(in: claudeSessions)) {
+            if record.state != .done, record.state != .ended {
+                let end = record.transcriptPath.isEmpty ? nil
+                    : TranscriptTitle.turnEnd(in: URL(fileURLWithPath: record.transcriptPath), provider: record.provider)
+                // 等输入不看 status：elicitation 对话框是回合中途等人，那时写不写 idle 没验证过；idle_prompt 那种 hook 已经不写成等输入。
+                // Codex 没有 status 文件，只看 rollout
+                if end != nil || (record.isClaude && record.state != .waitingInput && record.claudeCodeReportsIdle(in: claudeSessions)) {
                     record.state = .done
                     if case .apiError(let text) = end {
                         record.message = HookDecision.clip(text)
@@ -125,6 +154,13 @@ final class SessionStore {
             }
             loaded.append(record)
         }
+        // 已关闭的只留最新几条
+        let dropped = Set(loaded.filter { $0.state == .ended }.sorted { $0.updatedAt > $1.updatedAt }
+            .dropFirst(Self.maxEnded).map(\.sessionId))
+        for id in dropped {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(id).json"))
+        }
+        loaded.removeAll { dropped.contains($0.sessionId) }
         let alerts = Self.alerts(previous: sessions, current: loaded, quiet: quiet)
         sessions = loaded.sorted { $0.updatedAt > $1.updatedAt }
         for record in alerts { sessionAlert?(record) }
@@ -132,11 +168,11 @@ final class SessionStore {
 
     /// 值得弹一下的会话：上一轮见过、这一轮进入了 done / 等审批 / 等输入，且和上一轮状态不同。
     /// 第一次露面就已经在那个状态的不算（Tally 晚于会话启动），done → running → done 每个回合都算。
-    /// `quiet` 里的会话不弹：打断补判出来的 done。
+    /// 进入压缩中、已关闭不算；`quiet` 里的会话不弹：打断补判出来的 done。
     static func alerts(previous: [SessionRecord], current: [SessionRecord], quiet: Set<String> = []) -> [SessionRecord] {
         let before = Dictionary(previous.map { ($0.sessionId, $0.state) }, uniquingKeysWith: { a, _ in a })
         return current.filter { record in
-            guard record.state != .running, !quiet.contains(record.sessionId), let old = before[record.sessionId] else { return false }
+            guard record.state == .done || record.isWaiting, !quiet.contains(record.sessionId), let old = before[record.sessionId] else { return false }
             return old != record.state
         }
     }

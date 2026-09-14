@@ -63,6 +63,17 @@ final class HookDecisionTests: XCTestCase {
         XCTAssertEqual(decide("PostToolUse", existing: .unreadable), .write(state: .running, message: nil), "坏文件照样覆盖")
     }
 
+    func testSubagentPostToolUseOnlyClearsApprovalWait() {
+        let sub: [String: Any] = ["agent_id": "a1", "agent_type": "debugger"]
+        XCTAssertEqual(decide("PostToolUse", sub, existing: .state("done")), .none, "主回合结束后子 agent 在后台干活不算又忙起来")
+        XCTAssertEqual(decide("PostToolUse", sub, existing: .state("waiting_input")), .none)
+        XCTAssertEqual(decide("PostToolUse", sub, existing: .state("ended")), .none)
+        XCTAssertEqual(decide("PostToolUse", sub, existing: .state("compacting")), .none)
+        XCTAssertEqual(decide("PostToolUse", sub, existing: .state("waiting_permission")), .write(state: .running, message: nil), "审批过了")
+        XCTAssertEqual(decide("PostToolUse", sub, existing: .missing), .write(state: .running, message: nil), "Tally 装上时正跑着")
+        XCTAssertEqual(decide("PostToolUse", ["agent_id": ""], existing: .state("done")), .write(state: .running, message: nil), "空的 agent_id 按主线程算")
+    }
+
     func testPostToolUseIsNoopWhenAlreadyRunning() {
         XCTAssertEqual(decide("PostToolUse", existing: .state("running")), .none)
     }
@@ -75,8 +86,17 @@ final class HookDecisionTests: XCTestCase {
         XCTAssertEqual(decide("Stop"), .write(state: .done, message: nil))
     }
 
-    func testSessionEndDeletes() {
-        XCTAssertEqual(decide("SessionEnd"), .delete)
+    func testSessionEndKeepsInteractiveSessionsAsEndedAndDeletesOthers() {
+        XCTAssertEqual(decide("SessionEnd"), .delete, "claude -p / codex exec 不留")
+        XCTAssertEqual(HookDecision.decide(event: "SessionEnd", input: [:], existing: .state("done"), interactive: { true }), .write(state: .ended, message: nil))
+        var probed = false
+        _ = HookDecision.decide(event: "Stop", input: [:], existing: .state("running"), interactive: { probed = true; return true })
+        XCTAssertFalse(probed, "只有 SessionEnd 才读 transcript 判交互")
+    }
+
+    func testPreCompactWritesCompacting() {
+        XCTAssertEqual(decide("PreCompact", ["trigger": "auto"], existing: .state("running")), .write(state: .compacting, message: nil))
+        XCTAssertEqual(decide("PreCompact", ["trigger": "manual"], existing: .state("done")), .write(state: .compacting, message: nil), "手动 /compact 时会话本来是 done")
     }
 
     func testUnknownEventIsNoop() {

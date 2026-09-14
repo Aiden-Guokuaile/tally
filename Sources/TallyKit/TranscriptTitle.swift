@@ -63,9 +63,47 @@ public enum TranscriptTitle {
         case apiError(String?)
     }
 
-    public static func turnEnd(in url: URL) -> TurnEnd? {
+    public static func turnEnd(in url: URL, provider: String = "claude") -> TurnEnd? {
         guard let tail = tail(of: url) else { return nil }
-        return parseTurnEnd(tail.text, truncated: tail.truncated)
+        return provider == "codex"
+            ? parseCodexTurnEnd(tail.text, truncated: tail.truncated)
+            : parseTurnEnd(tail.text, truncated: tail.truncated)
+    }
+
+    /// Codex 的 rollout：Stop 只在回合成功时发，打断和出错都不发。从后往前找最后一条回合生命周期事件
+    /// （`event_msg` 的 `task_started` / `task_complete` / `turn_aborted`）：`turn_aborted` 是打断；`task_complete` 带 `error` 是报错
+    /// （0.128 及以前先单独写一条 `error` 事件、`task_complete` 的 error 为 null，这一回合里有它也算）；
+    /// `task_started`、正常完成（交给 Stop）、最后一条是 `error` 还没完成（可能在重试）都按没结束。
+    public static func parseCodexTurnEnd(_ text: String, truncated: Bool) -> TurnEnd? {
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        if truncated, !lines.isEmpty { lines.removeFirst() }
+        var completedWithoutError = false
+        for line in lines.reversed() where line.contains("\"event_msg\"") {
+            guard let data = line.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  object["type"] as? String == "event_msg",
+                  let payload = object["payload"] as? [String: Any]
+            else { continue }
+            let kind = payload["type"] as? String
+            if completedWithoutError {
+                // 往回找这一回合里有没有老版本单独写的 error 事件，碰到回合开头或上一回合就停
+                if kind == "error" { return .apiError(payload["message"] as? String) }
+                if kind == "task_started" || kind == "task_complete" || kind == "turn_aborted" { return nil }
+                continue
+            }
+            switch kind {
+            case "turn_aborted":
+                return .interrupted
+            case "task_started", "error":
+                return nil
+            case "task_complete":
+                if let error = payload["error"] as? [String: Any] { return .apiError(error["message"] as? String) }
+                completedWithoutError = true
+            default:
+                continue
+            }
+        }
+        return nil
     }
 
     /// 从后往前找第一条主链对话记录：子 agent 的（`isSidechain`）和 Claude Code 注入的提示（`isMeta`）不算，
@@ -89,6 +127,34 @@ public enum TranscriptTitle {
             return object["isApiErrorMessage"] as? Bool == true ? .apiError(texts.first) : nil
         }
         return nil
+    }
+
+    /// 是不是在终端里开的交互会话：只有这种结束后才留一行「已关闭」给人接着聊。认的是反面，确认是脚本跑的才算不是：
+    /// Claude 的 transcript 尾巴里只有 `"entrypoint":"sdk-cli"`（`claude -p` 和 SDK），Codex 的 rollout 第一行 `session_meta`
+    /// 的 `source` 是 `"exec"`（`codex exec`）或一个对象（子 agent）。文件在但判不出来按是算：多留一行最多占个位置（只留 5 条），
+    /// 误删了就再也接不回去。文件不存在按不是算：没有 transcript 就没有能接着聊的东西。
+    public static func isInteractive(transcript url: URL, provider: String) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        if provider == "codex" {
+            return !(head(of: url).map(isScriptedCodexHead) ?? false)
+        }
+        guard let tail = tail(of: url) else { return true }
+        return tail.text.contains("\"entrypoint\":\"cli\"") || !tail.text.contains("\"entrypoint\":\"sdk-cli\"")
+    }
+
+    /// rollout 第一行带着整段系统提示（实测两万字节上下），`source` 在前几百字节；只找子串不整行解析，第一行被 64 KB 截断也认得出。
+    public static func isScriptedCodexHead(_ head: String) -> Bool {
+        let firstLine = head.prefix { $0 != "\n" }
+        return firstLine.contains("\"type\":\"session_meta\"")
+            && (firstLine.contains("\"source\":\"exec\"") || firstLine.contains("\"source\":{"))
+    }
+
+    /// 文件头 `tailBytes` 字节。
+    private static func head(of url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: tailBytes), !data.isEmpty else { return nil }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// 文件尾 `tailBytes` 字节；`truncated` 为真时第一行是被截断的半行。

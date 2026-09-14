@@ -15,7 +15,8 @@ final class HookRunnerTests: XCTestCase {
     private var directory: URL!
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("tally-hook-\(UUID().uuidString)")
+        // 多套一层 sessions：hook 的心跳写在会话目录上一层，每个用例得有自己的上一层
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent("tally-hook-\(UUID().uuidString)").appendingPathComponent("sessions")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
@@ -186,11 +187,47 @@ final class HookRunnerTests: XCTestCase {
         XCTAssertEqual(r.message?.unicodeScalars.count, 120)
     }
 
-    func testSessionEndDeletesAndIsIdempotent() throws {
+    func testSubagentToolCallsDoNotReviveFinishedTurn() throws {
+        // 实测的顺序：主回合 Stop，1 秒后后台子 agent 的工具调用带着同一个 session_id 进来，60 秒后 idle_prompt
+        _ = run(event("Stop", ["last_assistant_message": "好了"]))
+        XCTAssertEqual(run(event("PostToolUse", ["agent_id": "a1", "agent_type": "debugger"])), .none)
+        XCTAssertEqual(run(event("Notification", ["notification_type": "idle_prompt"])), .none)
+        XCTAssertEqual(try read().state, .done)
+    }
+
+    func testAcceptedEventsLeaveAHeartbeatNextToTheSessionsDirectory() throws {
+        _ = run(event("UserPromptSubmit"), options: options(now: Date(timeIntervalSince1970: 7)))
+        XCTAssertEqual(HookHeartbeat.read(sessionsDirectory: directory, provider: "claude"), HookHeartbeat(event: "UserPromptSubmit", at: 7000))
+        XCTAssertEqual(run(["hook_event_name": "Stop"]), .ignored)
+        XCTAssertEqual(HookHeartbeat.read(sessionsDirectory: directory, provider: "claude")?.event, "UserPromptSubmit", "校验不过不写")
+
+        // Claude 侧顺带记下 Claude Code 进程里的 CLAUDE_CONFIG_DIR，app 问不到 .zshrc 里的变量时靠它
+        var withConfigDir = options(now: Date(timeIntervalSince1970: 8))
+        withConfigDir.environment["CLAUDE_CONFIG_DIR"] = "/Users/x/.claude-work"
+        _ = run(event("Stop"), options: withConfigDir)
+        XCTAssertEqual(HookHeartbeat.read(sessionsDirectory: directory, provider: "claude")?.claudeConfigDir, "/Users/x/.claude-work")
+        _ = run(event("Stop"), options: options(provider: "codex", now: Date(timeIntervalSince1970: 9)))
+        XCTAssertNil(HookHeartbeat.read(sessionsDirectory: directory, provider: "codex")?.claudeConfigDir, "Codex 侧不记")
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: directory.path).contains { $0.hasPrefix("hook-last") }, "不写在被 kqueue 盯着的会话目录里")
+    }
+
+    func testSessionEndDeletesNonInteractiveAndIsIdempotent() throws {
         try writeState("abc-123", "done")
         guard case .deleted = run(event("SessionEnd")) else { return XCTFail() }
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), [])
         guard case .deleted = run(event("SessionEnd")) else { return XCTFail("不存在也算删成功") }
+    }
+
+    func testSessionEndKeepsInteractiveSessionAsEnded() throws {
+        let transcript = FileManager.default.temporaryDirectory.appendingPathComponent("tally-cli-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: transcript) }
+        try (#"{"type":"user","entrypoint":"cli","message":{"role":"user","content":"跑一下"}}"# + "\n").write(to: transcript, atomically: true, encoding: .utf8)
+        try writeState("abc-123", "done")
+        guard case .written = run(event("SessionEnd", ["transcript_path": transcript.path])) else { return XCTFail() }
+        XCTAssertEqual(try read().state, .ended)
+
+        try (#"{"type":"user","entrypoint":"sdk-cli","message":{"role":"user","content":"跑一下"}}"# + "\n").write(to: transcript, atomically: true, encoding: .utf8)
+        guard case .deleted = run(event("SessionEnd", ["transcript_path": transcript.path])) else { return XCTFail("claude -p 不留") }
     }
 
     // ── 守门 ────────────────────────────────────────────────────

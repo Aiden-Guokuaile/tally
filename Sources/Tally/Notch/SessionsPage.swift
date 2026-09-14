@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// 会话列表页：按 updated_at 倒序，一行一个会话，点行跳回 Ghostty 窗口。
+/// 会话列表页：分「等你 / 在跑 / 最近」三组，一行一个会话，点行跳回它的终端（已关闭的是接着聊）。
 struct SessionsPage: View {
     var store = SessionStore.shared
+    var jump = SessionJump.shared
 
     var body: some View {
         if store.sessions.isEmpty {
@@ -16,10 +17,18 @@ struct SessionsPage: View {
             }
             .frame(maxWidth: .infinity, minHeight: 72, maxHeight: .infinity)
         } else {
+            let now = Date()
+            let ordered = SessionRecord.displayOrder(store.sessions, now: now)
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 2) {
-                    ForEach(store.sessions) { session in
-                        SessionRow(session: session)
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(ordered.enumerated()), id: \.element.id) { index, session in
+                        let group = session.group(now: now)
+                        if index == 0 || ordered[index - 1].group(now: now) != group {
+                            GroupHeader(group: group, first: index == 0)
+                        }
+                        // ⌘N 按显示顺序数，所以编号就是行号
+                        SessionRow(session: session, now: now,
+                                   shortcut: jump.shortcutHints && index < PanelKey.sessionKeyCount ? index + 1 : nil)
                     }
                 }
             }
@@ -27,8 +36,33 @@ struct SessionsPage: View {
     }
 }
 
+/// 组头：一行灰色小字。
+private struct GroupHeader: View {
+    let group: SessionRecord.Group
+    let first: Bool
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.4))
+            .padding(.leading, 6)
+            .padding(.top, first ? 0 : 4)
+    }
+
+    private var title: String {
+        switch group {
+        case .waiting: return "等你"
+        case .working: return "在跑"
+        case .recent: return "最近"
+        }
+    }
+}
+
 struct SessionRow: View {
     let session: SessionRecord
+    let now: Date
+    /// 按住 ⌘ 时行尾显示的编号（1–5），nil 不显示。
+    let shortcut: Int?
     var jump = SessionJump.shared
     @State private var hovered = false
 
@@ -40,8 +74,8 @@ struct SessionRow: View {
     }()
 
     var body: some View {
-        let now = Date()
         let stale = session.isStale(now: now)
+        let ended = session.state == .ended
         Button(action: focus) {
             HStack(spacing: 8) {
                 StateIcon(state: session.state, stale: stale)
@@ -50,14 +84,25 @@ struct SessionRow: View {
                         Text(session.displayTitle)
                             .font(.system(size: 12, weight: .medium))
                             .italic(stale)
-                            .foregroundStyle(stale ? .white.opacity(0.45) : .white)
+                            .foregroundStyle(stale || ended ? .white.opacity(0.45) : .white)
                             .lineLimit(1)
                         ProviderTag(session: session)
+                        // tmux 里的会话点了先切 pane 再带外层终端，标出来免得以为跳错了地方
+                        if session.term == "tmux" {
+                            Text("tmux")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(RoundedRectangle(cornerRadius: 3).fill(.white.opacity(0.14)))
+                        }
                     }
                     HStack(spacing: 6) {
                         Text(session.cwdLabel)
                         Text(Self.relative.localizedString(for: session.updatedDate, relativeTo: now))
                         if stale { Text("失联") }
+                        if session.state == .compacting { Text("压缩上下文中") }
+                        if ended { Text("已关闭 · 点一下接着聊") }
                     }
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
@@ -69,6 +114,14 @@ struct SessionRow: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.red)
                         .lineLimit(1)
+                }
+                if let shortcut {
+                    Text("⌘\(shortcut)")
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.65))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(.white.opacity(0.12)))
                 }
             }
             .padding(.vertical, 4)
@@ -87,7 +140,7 @@ struct SessionRow: View {
     }
 }
 
-/// 跳回会话的终端。点会话行和 ⌘1–⌘5 共用；失败的那句话按会话记在这儿，行里红字显示——
+/// 跳回会话的终端（已关闭的会话是在新终端里接着聊）。点会话行和 ⌘1–⌘5 共用；失败的那句话按会话记在这儿，行里红字显示——
 /// 记在行自己的 @State 里的话，⌘N 跳失败时面板里那一行根本不知道。
 @MainActor
 @Observable
@@ -96,6 +149,8 @@ final class SessionJump {
 
     /// session_id → 上次跳失败的原因；跳成功就清掉。
     private(set) var failures: [String: String] = [:]
+    /// 按住 ⌘ 时为真：前五行行尾显示 ⌘1–⌘5。面板的键盘监视器写。
+    var shortcutHints = false
 
     /// 返回跳没跳成。
     @discardableResult
@@ -107,7 +162,11 @@ final class SessionJump {
 
     private static func attempt(_ session: SessionRecord) async -> String? {
         do {
-            try await TerminalLocator.focus(session: session)
+            if session.state == .ended {
+                try await SessionResume.run(session)
+            } else {
+                try await TerminalLocator.focus(session: session)
+            }
             return nil
         } catch TerminalLocator.Failure.notFound {
             return "找不到窗口"
@@ -141,7 +200,7 @@ struct ProviderTag: View {
     }
 }
 
-/// 状态图标：等审批橙、等输入黄、忙灰、完成绿、失联灰。
+/// 状态图标：等审批橙、等输入黄、忙灰、压缩中青、完成绿、失联灰、已关闭灰。
 struct StateIcon: View {
     let state: SessionRecord.State
     let stale: Bool
@@ -159,7 +218,9 @@ struct StateIcon: View {
         case .waitingPermission: return "exclamationmark.circle.fill"
         case .waitingInput: return "questionmark.circle.fill"
         case .running: return "circle.dotted"
+        case .compacting: return "arrow.triangle.2.circlepath"
         case .done: return "checkmark.circle.fill"
+        case .ended: return "arrow.uturn.backward.circle"
         }
     }
 
@@ -169,7 +230,9 @@ struct StateIcon: View {
         case .waitingPermission: return .orange
         case .waitingInput: return .yellow
         case .running: return .gray
+        case .compacting: return .cyan
         case .done: return .green
+        case .ended: return .gray
         }
     }
 }

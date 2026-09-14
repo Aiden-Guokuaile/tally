@@ -102,6 +102,8 @@ struct LaunchOptions: Equatable {
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var notch: NotchController?
+    /// `open -a Tally <文件>` 顺带把 app 拉起来时，文件比 didFinishLaunching 先到，控制器还没建：先攒着。
+    private var pendingFiles: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let options = LaunchOptions.parse(CommandLine.arguments)
@@ -124,6 +126,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch = NotchController(openOnLaunch: panelPage) {
             SettingsWindowController.shared.show()
         }
+        if !pendingFiles.isEmpty {
+            notch?.receiveFiles(pendingFiles)
+            pendingFiles = []
+        }
         if options.openPage == .settings {
             SettingsWindowController.shared.show()
         }
@@ -133,6 +139,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 合盖不休眠是系统级的持久设置，不在这儿收掉的话，退出 Tally 之后机器再也不休眠
         LidSleepBlocker.shared.disable()
         UsageStore.shared.flushScanCaches()
+    }
+
+    /// `open -a Tally <文件…>`：放进文件架。Info.plist 不声明文档类型，访达的「打开方式」里没有 Tally，明说 `-a Tally` 才进来。
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let files = urls.filter(\.isFileURL)
+        guard !files.isEmpty else { return }
+        if let notch {
+            notch.receiveFiles(files)
+        } else {
+            pendingFiles += files
+        }
     }
 
     /// 点 Dock 图标（设置窗口开着时才有）把设置窗口叫回来。

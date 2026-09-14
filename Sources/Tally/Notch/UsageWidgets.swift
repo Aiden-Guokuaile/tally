@@ -8,12 +8,33 @@ func quotaColor(_ fraction: Double) -> Color {
     return .green
 }
 
+/// 配速：窗口时间已经过去的比例，填充越过它就是用得比时间快。纯函数。
+enum QuotaPace {
+    /// 领先这么多（百分点）才算用快了：刚开窗口时一两次调用就会领先一大截，不值得标。
+    static let aheadMargin = 0.1
+
+    /// 没有重置时间、窗口长度未知、剩余时间不在 (0, 窗口] 里（数据对不上）都给 nil，不画。
+    static func elapsedFraction(resetsAt: Date?, window: TimeInterval?, now: Date) -> Double? {
+        guard let resetsAt, let window, window > 0 else { return nil }
+        let remaining = resetsAt.timeIntervalSince(now)
+        guard remaining > 0, remaining <= window else { return nil }
+        return 1 - remaining / window
+    }
+
+    /// 浮点减法 0.9 − 0.8 比 0.1 小一丁点，留个容差，正好领先 10 个百分点也算。
+    static func isAhead(used: Double, elapsed: Double) -> Bool {
+        used - elapsed >= aheadMargin - 1e-9
+    }
+}
+
 /// 一条配额：标签、条、整数百分比（缓存陈旧时加「~」）、重置时刻。紧凑到一行能放两条。
+/// 给了窗口长度就在条上画配速线：窗口时间过去了多少就画在哪儿，领先 10 个百分点以上变橙。
 struct QuotaBar: View {
     let label: String
     let limit: UsageLimit
     let stale: Bool
     let now: Date
+    var window: TimeInterval? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -28,6 +49,12 @@ struct QuotaBar: View {
                     Capsule()
                         .fill(quotaColor(limit.fraction))
                         .frame(width: max(4, geometry.size.width * min(1, limit.fraction)))
+                    if let elapsed = QuotaPace.elapsedFraction(resetsAt: limit.resetsAt, window: window, now: now) {
+                        Rectangle()
+                            .fill(QuotaPace.isAhead(used: limit.fraction, elapsed: elapsed) ? Color.orange : Color.white.opacity(0.75))
+                            .frame(width: 1.5, height: 10)
+                            .offset(x: geometry.size.width * elapsed - 0.75)
+                    }
                 }
             }
             .frame(width: 50, height: 6)
@@ -39,6 +66,24 @@ struct QuotaBar: View {
                 .font(.system(size: 9).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.45))
                 .frame(width: 58, alignment: .leading)
+                .lineLimit(1)
+        }
+    }
+}
+
+/// 一笔余额：「余额 ¥110.00」。钱没有百分比和重置时间，不画条；花光了标红。
+struct BalanceLabel: View {
+    let balance: Balance
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(balance.label)
+                .font(.system(size: 9))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+            Text(balance.amountText)
+                .font(.metric(11, .medium))
+                .foregroundStyle(balance.amount > 0 ? Color.white.opacity(0.85) : .red)
                 .lineLimit(1)
         }
     }

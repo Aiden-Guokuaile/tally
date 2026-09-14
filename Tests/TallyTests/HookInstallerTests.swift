@@ -46,7 +46,7 @@ final class HookInstallerTests: XCTestCase {
             .compactMap { ($0["hooks"] as? [[String: Any]])?.first?["command"] as? String }
     }
 
-    func testMissingFileInstallsAllSixAndReportsInstalled() throws {
+    func testMissingFileInstallsEveryEventAndReportsInstalled() throws {
         let i = installer()
         XCTAssertEqual(i.status(.claude), .missing)
         try i.install(.claude)
@@ -77,7 +77,7 @@ final class HookInstallerTests: XCTestCase {
                   "PreToolUse":[{"hooks":[{"type":"command","command":"node guard.js"}]}]}}
         """)
         let i = installer()
-        XCTAssertEqual(i.status(.claude), .pointsElsewhere("SessionStart、UserPromptSubmit、Notification、PostToolUse、SessionEnd 未注册；命令指向 node /old/claude-event.js"))
+        XCTAssertEqual(i.status(.claude), .pointsElsewhere("SessionStart、UserPromptSubmit、Notification、PostToolUse、PreCompact、SessionEnd 未注册；命令指向 node /old/claude-event.js"))
         try i.install(.claude)
         let root = try json("settings.json")
         XCTAssertEqual(commands(root, "Stop"), ["\"\(binary)\"", "node verify-gate.js"])
@@ -95,18 +95,18 @@ final class HookInstallerTests: XCTestCase {
         try write("settings.json", """
         {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\\"/x/tally-hook\\""}]},{"hooks":[{"type":"command","command":"\\"/y/tally-hook\\""}]}]}}
         """)
-        XCTAssertEqual(i.status(.claude), .pointsElsewhere("SessionStart、UserPromptSubmit、Notification、PostToolUse、SessionEnd 未注册；命令指向 \"/x/tally-hook\""))
+        XCTAssertEqual(i.status(.claude), .pointsElsewhere("SessionStart、UserPromptSubmit、Notification、PostToolUse、PreCompact、SessionEnd 未注册；命令指向 \"/x/tally-hook\""))
         try i.install(.claude)
         XCTAssertEqual(commands(try json("settings.json"), "Stop"), ["\"\(binary)\""])
     }
 
-    func testFourOfSixReportsMissingEvents() throws {
+    func testPartialRegistrationReportsMissingEvents() throws {
         var hooks: [String: Any] = [:]
         for event in ["SessionStart", "UserPromptSubmit", "Stop", "SessionEnd"] {
             hooks[event] = [["hooks": [["type": "command", "command": "\"\(binary)\"", "timeout": 5]]]]
         }
         try HookInstaller.save(["hooks": hooks], to: dir.appendingPathComponent("settings.json"))
-        XCTAssertEqual(installer().status(.claude), .pointsElsewhere("Notification、PostToolUse 未注册"))
+        XCTAssertEqual(installer().status(.claude), .pointsElsewhere("Notification、PostToolUse、PreCompact 未注册"), "升级前装的机器会看到 PreCompact 未注册")
     }
 
     func testCodexInstallWritesProviderFlagAndPatchesTrustInPlace() throws {
@@ -308,6 +308,49 @@ final class HookInstallerTests: XCTestCase {
         let saved = ProcessInfo.processInfo.environment["SHELL"]
         setenv("SHELL", shell.path, 1)
         return { if let saved { setenv("SHELL", saved, 1) } else { unsetenv("SHELL") } }
+    }
+}
+
+/// Claude Code 的家可以被 `CLAUDE_CONFIG_DIR` 指到别处：hook、用量日志、凭据、打断判定都跟着搬。
+final class ClaudeHomeTests: XCTestCase {
+
+    private func withEnvironmentValue(_ value: String?, _ body: () -> Void) {
+        let saved = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
+        if let value { setenv("CLAUDE_CONFIG_DIR", value, 1) } else { unsetenv("CLAUDE_CONFIG_DIR") }
+        body()
+        if let saved { setenv("CLAUDE_CONFIG_DIR", saved, 1) } else { unsetenv("CLAUDE_CONFIG_DIR") }
+    }
+
+    func testResolvesFromEnvironmentThenShell() {
+        withEnvironmentValue(nil) {
+            XCTAssertNil(ClaudeHome.resolveRaw(shellValue: nil))
+            XCTAssertNil(ClaudeHome.resolveRaw(shellValue: "  "), "空白当没设")
+            XCTAssertEqual(ClaudeHome.resolveRaw(shellValue: "/Users/x/.claude-work/"), "/Users/x/.claude-work/", "原值不动：尾斜杠影响钥匙串哈希")
+            XCTAssertEqual(ClaudeHome.resolveRaw(shellValue: nil, recorded: "/Users/x/.claude-zshrc"), "/Users/x/.claude-zshrc",
+                           "只写在 .zshrc 里的变量登录 shell 问不出来，用 hook 记下的")
+            XCTAssertEqual(ClaudeHome.resolveRaw(shellValue: "/from-shell", recorded: "/recorded"), "/from-shell", "shell 问得到就用 shell 的")
+        }
+        withEnvironmentValue("/tmp/from-environment") {
+            XCTAssertEqual(ClaudeHome.resolveRaw(shellValue: "/tmp/from-shell"), "/tmp/from-environment")
+        }
+    }
+
+    func testPathsFollowTheConfigDir() {
+        let home = NSHomeDirectory()
+        XCTAssertEqual(SessionRecord.claudeHome(configDir: nil).path, home + "/.claude")
+        XCTAssertEqual(SessionRecord.claudeHome(configDir: " "), SessionRecord.claudeHome(configDir: nil), "空白当没设")
+        XCTAssertEqual(SessionRecord.claudeSessionsDirectory(configDir: nil).path, home + "/.claude/sessions")
+        XCTAssertEqual(SessionRecord.claudeSessionsDirectory(configDir: "/x/work").path, "/x/work/sessions")
+        XCTAssertEqual(SessionRecord.claudeHome(configDir: "~/.claude-work").path, home + "/.claude-work")
+        XCTAssertEqual(ClaudeHome.globalConfig(nil).path, home + "/.claude.json", "没设时 .claude.json 在家目录旁边")
+        XCTAssertEqual(ClaudeHome.globalConfig("/x/work").path, "/x/work/.claude.json", "设了在目录里面")
+    }
+
+    /// 钥匙串服务名要和 Claude Code 算得一模一样，否则设了 CLAUDE_CONFIG_DIR 就读不到配额（或读到别的账号）。
+    func testKeychainServiceMatchesClaudeCode() {
+        XCTAssertEqual(ClaudeHome.keychainService(nil), "Claude Code-credentials")
+        XCTAssertEqual(ClaudeHome.keychainService("/Users/vinz/.claude-work"), "Claude Code-credentials-19914660")
+        XCTAssertEqual(ClaudeHome.keychainService("/Users/vinz/.claude-work/"), "Claude Code-credentials-e5649954", "按原字符串算，尾斜杠不去掉")
     }
 }
 

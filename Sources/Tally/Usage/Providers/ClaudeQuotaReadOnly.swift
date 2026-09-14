@@ -5,7 +5,7 @@ import Foundation
 /// 底线：只读 accessToken 与 expiresAt，不碰刷新用的那个 token，不调刷新接口，401 也不调，
 /// 不重试，不往凭据文件或钥匙串写一个字节。分享版没有 statusline 缓存时靠它。
 ///
-/// token 读到就存在 `TokenBox` 里，一个进程只读一次：新版 Claude Code 不写 `~/.claude/.credentials.json`，
+/// token 读到就存在 `TokenBox` 里，一个进程只读一次：新版 Claude Code 不写 `<Claude 的家>/.credentials.json`，
 /// 只放钥匙串，而 Tally 是 ad-hoc 签名——每次刷新都读一次钥匙串，系统就每次都弹「Tally 想要使用…」。
 enum ClaudeQuotaResult: Equatable {
     case limits(ClaudeLimits)
@@ -22,15 +22,21 @@ struct ClaudeQuotaReadOnly {
     let keychainItem: () -> String?
     /// 引用类型：这个 struct 被 provider 存着复制来复制去，缓存挂在盒子里才留得住。
     let tokenBox: TokenBox
+    /// 429 之后按接口退避；真 app 传落盘的 `QuotaBackoff.shared`。
+    let backoff: QuotaBackoff
+    static let backoffKey = "claude-oauth-usage"
 
     init(session: URLSession = .shared,
-         credentialsFile: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json"),
-         keychainItem: @escaping () -> String? = { KeychainReader.freshestGenericPassword(servicePrefix: "Claude Code-credentials")?.secret },
-         tokenBox: TokenBox = TokenBox()) {
+         credentialsFile: URL = ClaudeHome.url.appendingPathComponent(".credentials.json"),
+         // 没设 CLAUDE_CONFIG_DIR 时按前缀挑最新的那条（老行为）；设了就是带哈希后缀的那一条，不会拿到别的账号
+         keychainItem: @escaping () -> String? = { KeychainReader.freshestGenericPassword(servicePrefix: ClaudeHome.keychainService(ClaudeHome.rawValue))?.secret },
+         tokenBox: TokenBox = TokenBox(),
+         backoff: QuotaBackoff = QuotaBackoff()) {
         self.session = session
         self.credentialsFile = credentialsFile
         self.keychainItem = keychainItem
         self.tokenBox = tokenBox
+        self.backoff = backoff
     }
 
     /// 存住已经读到的 token。读失败（文件没有、钥匙串被拒）也记一笔，10 分钟内不再读，
@@ -106,6 +112,8 @@ struct ClaudeQuotaReadOnly {
             tokenBox.clear()
             return .tokenExpired
         }
+        // 429 退避期间不打接口：接着撞只会把退避越拉越长
+        guard backoff.allows(Self.backoffKey, now: now) else { return .unavailable }
         var request = URLRequest(url: Self.usageURL)
         // 默认超时 60 秒：代理抽风时整行「加载中」要卡一分钟，用量不值得等这么久
         request.timeoutInterval = 10
@@ -120,7 +128,12 @@ struct ClaudeQuotaReadOnly {
                 tokenBox.clear()
                 return .tokenExpired
             }
+            if http.statusCode == 429 {
+                backoff.throttled(Self.backoffKey, now: now, retryAfter: QuotaBackoff.retryAfter(http))
+                return .unavailable
+            }
             guard (200..<300).contains(http.statusCode) else { return .unavailable }
+            backoff.succeeded(Self.backoffKey)
             return Self.parseUsage(data).map { .limits($0) } ?? .unavailable
         } catch {
             return .unavailable

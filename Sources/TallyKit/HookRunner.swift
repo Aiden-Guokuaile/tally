@@ -11,7 +11,7 @@ public struct HookOptions {
     public var environment: [String: String]
     /// 从哪个进程开始往上找 agent；默认是 hook 进程的父进程。
     public var startPid: Int32
-    /// Claude Code 自己的 `~/.claude/sessions/<pid>.json` 所在目录。
+    /// Claude Code 自己的 `<Claude 的家>/sessions/<pid>.json` 所在目录。hook 继承 Claude Code 的环境，`CLAUDE_CONFIG_DIR` 直接看得到。
     public var claudeSessions: URL
 
     public init(provider: String = "claude",
@@ -19,7 +19,7 @@ public struct HookOptions {
                 now: @escaping () -> Date = Date.init,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
                 startPid: Int32 = getppid(),
-                claudeSessions: URL = SessionRecord.claudeSessionsDirectory) {
+                claudeSessions: URL = SessionRecord.claudeSessionsDirectory(configDir: ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"])) {
         self.provider = HookRunner.providers.contains(provider) ? provider : "claude"
         self.directory = directory
         self.now = now
@@ -60,17 +60,25 @@ public enum HookRunner {
               let event = input["hook_event_name"] as? String, HookDecision.events.contains(event)
         else { return .ignored }
 
+        // 设置页「最近收到事件」读它；写不进去不影响记状态，hook 本来也没有报错的出口
+        try? HookHeartbeat(event: event, at: (options.now().timeIntervalSince1970 * 1000).rounded(),
+                           claudeConfigDir: options.provider == "claude" ? options.environment["CLAUDE_CONFIG_DIR"].flatMap { $0.isEmpty ? nil : $0 } : nil)
+            .write(sessionsDirectory: options.directory, provider: options.provider)
+
         let file = options.directory.appendingPathComponent("\(sessionId).json")
         let (existing, previous) = readExisting(file)
         let transcriptPath = input["transcript_path"] as? String ?? ""
         let turnEnded = {
-            if !transcriptPath.isEmpty, TranscriptTitle.turnEnd(in: URL(fileURLWithPath: transcriptPath)) != nil { return true }
+            if !transcriptPath.isEmpty, TranscriptTitle.turnEnd(in: URL(fileURLWithPath: transcriptPath), provider: options.provider) != nil { return true }
             // idle_prompt 只在回合结束后一分钟发：Claude Code 自己说 idle，就是打断或报错没发 Stop（打断标记常常还没进 transcript）。
             // elicitation 是回合中途等人，不看 status。
             return input["notification_type"] as? String == "idle_prompt"
                 && previous?.claudeCodeReportsIdle(in: options.claudeSessions) == true
         }
-        switch HookDecision.decide(event: event, input: input, existing: existing, turnEnded: turnEnded) {
+        let interactive = {
+            !transcriptPath.isEmpty && TranscriptTitle.isInteractive(transcript: URL(fileURLWithPath: transcriptPath), provider: options.provider)
+        }
+        switch HookDecision.decide(event: event, input: input, existing: existing, turnEnded: turnEnded, interactive: interactive) {
         case .none:
             return .none
         case .delete:

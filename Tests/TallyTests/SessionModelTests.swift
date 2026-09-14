@@ -247,11 +247,38 @@ final class SessionTurnEndTests: XCTestCase {
         let store = makeStore()
         try write(state: .running, provider: "codex", transcript: [prompt, interrupt])
         store.reload()
-        XCTAssertEqual(store.sessions.first?.state, .running, "Codex 的 rollout 格式不同，不套这条规则")
+        XCTAssertEqual(store.sessions.first?.state, .running, "Codex 按自己 rollout 的格式判，Claude 的打断标记不算")
 
         try write(state: .done, transcript: [prompt, apiError])
         store.reload()
         XCTAssertNil(store.sessions.first?.message, "已经是 done 的不读尾巴、不改 message")
+    }
+
+    @MainActor
+    func testCodexRolloutAbortSettlesQuietlyAndErrorAlerts() throws {
+        // 实测 codex 0.154：Esc 和模型报错都不发 Stop，rollout 里当场写 turn_aborted / 带 error 的 task_complete
+        var alerts: [SessionRecord] = []
+        let store = makeStore()
+        store.sessionAlert = { alerts.append($0) }
+        let started = #"{"type":"event_msg","payload":{"type":"task_started","turn_id":"t1"}}"#
+
+        try write(state: .running, provider: "codex", transcript: [started])
+        store.reload()
+        XCTAssertEqual(store.sessions.first?.state, .running)
+
+        try write(state: .running, provider: "codex", transcript: [started, #"{"type":"event_msg","payload":{"type":"turn_aborted","turn_id":"t1","reason":"interrupted"}}"#])
+        store.reload()
+        XCTAssertEqual(store.sessions.first?.state, .done)
+        XCTAssertTrue(alerts.isEmpty, "Esc 是人按的，不弹")
+
+        try write(state: .running, provider: "codex", transcript: [started, #"{"type":"event_msg","payload":{"type":"task_started","turn_id":"t2"}}"#])
+        store.reload()
+        XCTAssertEqual(store.sessions.first?.state, .running, "下一轮开始回到忙")
+        try write(state: .running, provider: "codex",
+                  transcript: [started, #"{"type":"event_msg","payload":{"type":"task_complete","turn_id":"t2","error":{"message":"model not found"}}}"#])
+        store.reload()
+        XCTAssertEqual(store.sessions.first?.state, .done)
+        XCTAssertEqual(alerts.map(\.message), [Optional("model not found")], "报错照常弹，带报错原文")
     }
 
     @MainActor

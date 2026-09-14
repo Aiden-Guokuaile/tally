@@ -124,6 +124,44 @@ final class UsageStoreTests: XCTestCase {
         guard case .success? = h.store.results[.cursor] else { return XCTFail("新开的那家不该「加载中」等到下一轮刷新") }
     }
 
+    /// 改完凭据点「现在查一次」：刚刷过也照查，只查那一家；没开着的不查。
+    @MainActor
+    func testRefetchOneProviderSkipsTheThrottle() async throws {
+        let h = Harness(providers: [FakeProvider(id: .claude, error: nil), FakeProvider(id: .glm, error: "没有 GLM 的 key")])
+        h.prefs.enableGLM = true
+        h.store.providersChanged()
+        _ = await h.store.refreshAndWait(reason: .timer)
+        h.store.refetch(.glm)
+        guard case .loading? = h.store.results[.glm] else { return XCTFail("60 秒内刚刷过也要马上查") }
+        guard case .success? = h.store.results[.claude] else { return XCTFail("别家不动") }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        guard case .failure? = h.store.results[.glm] else { return XCTFail("查完回到结果") }
+
+        h.prefs.enableGLM = false
+        h.store.providersChanged()
+        h.store.refetch(.glm)
+        XCTAssertNil(h.store.results[.glm], "没开着的不查")
+    }
+
+    // MARK: 到重置时刻补刷
+
+    func testNextResetPicksTheNearestWindowAcrossProviders() {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        var claude = UsageSnapshot()
+        claude.sessionLimit = UsageLimit(used: 1, limit: 100, resetsAt: now.addingTimeInterval(3600))
+        claude.weekLimit = UsageLimit(used: 1, limit: 100, resetsAt: now.addingTimeInterval(86400))
+        claude.scopedLimits = [ScopedLimit(label: "Fable", limit: UsageLimit(used: 1, limit: 100, resetsAt: now.addingTimeInterval(600)))]
+        var codex = UsageSnapshot()
+        codex.sessionLimit = UsageLimit(used: 1, limit: 100, resetsAt: now.addingTimeInterval(-120))
+        let results: [ProviderID: UsageResult] = [.claude: .success(claude), .codex: .success(codex), .cursor: .failure("x"), .antigravity: .loading]
+        XCTAssertEqual(UsageStore.nextReset(in: results, now: now), now.addingTimeInterval(600), "按模型分的周窗口也算；早就过了的不算")
+        XCTAssertNil(UsageStore.nextReset(in: [.cursor: .success(UsageSnapshot())], now: now), "没有重置时间就不排")
+
+        codex.sessionLimit = UsageLimit(used: 1, limit: 100, resetsAt: now.addingTimeInterval(-5))
+        XCTAssertEqual(UsageStore.nextReset(in: [.codex: .success(codex)], now: now), now.addingTimeInterval(-5),
+                       "刚过重置时刻、补刷还没到点：一轮跨过重置时刻才回来，重排不能把补刷丢掉")
+    }
+
     // MARK: 临时失败沿用上一轮的配额
 
     func testCarryOverKeepsLastLiveLimitsOnTransientFailure() {
@@ -148,6 +186,20 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(kept.limitsNote, "Cursor quota unavailable")
         XCTAssertTrue(kept.limitsStale)
         XCTAssertEqual(kept.sessionLimit?.used, 30)
+    }
+
+    /// Kimi 配额和余额同一轮都失败：配额条沿用（带「~」），余额不沿用——余额数字没有陈旧标记。
+    func testCarryOverDropsBalancesFromTheLastSnapshot() {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        var last = UsageSnapshot()
+        last.sessionLimit = UsageLimit(used: 30, limit: 100, resetsAt: now.addingTimeInterval(3600))
+        last.balances = [Balance(amount: 49.5, currency: "CNY")]
+        let live = UsageStore.LiveLimits(session: last.sessionLimit, week: nil, at: now.addingTimeInterval(-600))
+        guard case .success(let carried) = UsageStore.carryOver(.failure("Kimi 余额被限流"), previous: .success(last), live: live, now: now)
+        else { return XCTFail() }
+        XCTAssertEqual(carried.sessionLimit?.used, 30)
+        XCTAssertTrue(carried.limitsStale)
+        XCTAssertTrue(carried.balances.isEmpty, "沿用的旧余额会被当成刚查到的")
     }
 
     func testLongCarryOverSaysSoInTheRow() {

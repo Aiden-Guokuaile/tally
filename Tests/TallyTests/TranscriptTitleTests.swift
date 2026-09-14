@@ -110,6 +110,42 @@ final class TranscriptTitleTests: XCTestCase {
         XCTAssertEqual(turnEnd([prompt, apiError, meta]), .apiError("You've hit your session limit · resets 3pm"), "注入的提示不算新输入")
     }
 
+    func testInteractiveSessionDetection() throws {
+        XCTAssertTrue(TranscriptTitle.isInteractive(transcript: try tempFile(#"{"type":"user","entrypoint":"cli"}"# + "\n"), provider: "claude"))
+        XCTAssertFalse(TranscriptTitle.isInteractive(transcript: try tempFile(#"{"type":"user","entrypoint":"sdk-cli"}"# + "\n"), provider: "claude"), "claude -p")
+        XCTAssertTrue(TranscriptTitle.isInteractive(transcript: try tempFile(#"{"type":"file-history-snapshot"}"# + "\n"), provider: "claude"), "判不出来按交互算：误删了就接不回去")
+        XCTAssertFalse(TranscriptTitle.isInteractive(transcript: URL(fileURLWithPath: "/nonexistent/x.jsonl"), provider: "claude"), "没有 transcript 就没有能接着聊的")
+
+        XCTAssertFalse(TranscriptTitle.isScriptedCodexHead(#"{"timestamp":"t","type":"session_meta","payload":{"id":"x","source":"cli","originator":"codex-tui"}}"# + "\n{}"))
+        XCTAssertTrue(TranscriptTitle.isScriptedCodexHead(#"{"type":"session_meta","payload":{"source":"exec","originator":"codex_exec"}}"#), "codex exec")
+        XCTAssertTrue(TranscriptTitle.isScriptedCodexHead(#"{"type":"session_meta","payload":{"source":{"subagent":{}}}}"#), "子 agent")
+        XCTAssertFalse(TranscriptTitle.isScriptedCodexHead(#"{"type":"event_msg"}"# + "\n" + #"{"type":"session_meta","payload":{"source":"exec"}}"#), "只看第一行")
+        // 第一行带着整段系统提示，比 64 KB 还长也认得出
+        let long = #"{"type":"session_meta","payload":{"source":"exec","base_instructions":""# + String(repeating: "x", count: 70_000) + "\"}}\n"
+        XCTAssertFalse(TranscriptTitle.isInteractive(transcript: try tempFile(long), provider: "codex"))
+    }
+
+    func testCodexTurnEndFromRolloutLifecycle() {
+        func event(_ payload: String) -> String { #"{"timestamp":"t","type":"event_msg","payload":"# + payload + "}" }
+        let started = event(#"{"type":"task_started","turn_id":"t1"}"#)
+        let aborted = event(#"{"type":"turn_aborted","turn_id":"t1","reason":"interrupted"}"#)
+        let abortNote = #"{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<turn_aborted>"}]}}"#
+        let failed = event(#"{"type":"task_complete","turn_id":"t1","last_agent_message":null,"error":{"message":"model not found","codex_error_info":"other"}}"#)
+        let completed = event(#"{"type":"task_complete","turn_id":"t1","last_agent_message":"好了","error":null}"#)
+        let oldError = event(#"{"type":"error","message":"usage limit exceeded","codex_error_info":"usage_limit_exceeded"}"#)
+        func end(_ lines: [String]) -> TranscriptTitle.TurnEnd? {
+            TranscriptTitle.parseCodexTurnEnd(lines.joined(separator: "\n") + "\n", truncated: false)
+        }
+        XCTAssertEqual(end([started, abortNote, aborted]), .interrupted)
+        XCTAssertEqual(end([started, failed]), .apiError("model not found"))
+        XCTAssertEqual(end([started, oldError, completed]), .apiError("usage limit exceeded"), "0.128 及以前单独写 error 事件")
+        XCTAssertNil(end([started, completed]), "正常完成交给 Stop")
+        XCTAssertNil(end([aborted, started]), "打断后又开了一轮")
+        XCTAssertNil(end([started, oldError]), "报错后还没完成，可能在重试")
+        XCTAssertNil(end([abortNote]), "尾巴里没有生命周期事件")
+        XCTAssertNil(TranscriptTitle.parseTurnEnd([started, aborted].joined(separator: "\n") + "\n", truncated: false), "Claude 的判法不认 Codex 的事件")
+    }
+
     func testTurnEndReadsFileTail() throws {
         XCTAssertEqual(TranscriptTitle.turnEnd(in: try tempFile([prompt, interrupt].joined(separator: "\n") + "\n")), .interrupted)
         XCTAssertNil(TranscriptTitle.turnEnd(in: URL(fileURLWithPath: "/nonexistent/x.jsonl")))

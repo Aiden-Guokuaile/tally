@@ -48,6 +48,13 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.peekTapAction, "terminal", "默认跳回对应终端")
         XCTAssertTrue(prefs.pageNumberKeys, "数字键切页签默认开")
         XCTAssertTrue(prefs.sessionCommandKeys, "⌘1–⌘5 跳会话默认开：只在面板展开时归面板")
+        XCTAssertTrue(prefs.keepClosedSessions, "已关闭的会话默认留着接着聊")
+        XCTAssertTrue(prefs.quotaPeek, "配额提醒默认开")
+        XCTAssertTrue(prefs.sessionSound, "提示音默认开")
+        XCTAssertFalse(prefs.hideInFullScreen, "全屏隐藏默认关：升级后行为不变")
+        XCTAssertTrue(prefs.notifyWithoutNotch, "没有刘海屏时改发通知默认开：合盖接外接屏的人不然只剩一声响")
+        XCTAssertFalse(prefs.screenshotsToShelf, "截图进文件架默认关：要用户点选文件夹才有授权")
+        XCTAssertNil(prefs.screenshotFolder)
         // 手改成离谱的秒数要夹回来，不然提示条要么永不收要么一闪而过
         let wild = try JSONDecoder().decode(Preferences.self, from: Data(#"{"peekSessionSeconds":999,"peekBatterySeconds":0,"peekTapAction":"乱写的"}"#.utf8))
         XCTAssertEqual(wild.peekSessionSeconds, 30)

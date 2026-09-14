@@ -197,6 +197,12 @@ struct ProviderLogo: View {
                 .interpolation(.high)
                 .frame(width: size, height: size)
                 .foregroundStyle(name == "claude" ? Color(red: 0.851, green: 0.467, blue: 0.341) : .white.opacity(0.85))
+        } else if name == "newapi" {
+            // New API 中转站没有统一的标志（每个站自己一个），画个服务器
+            Image(systemName: "server.rack")
+                .font(.system(size: size * 0.8))
+                .frame(width: size, height: size)
+                .foregroundStyle(.white.opacity(0.85))
         }
     }
 
