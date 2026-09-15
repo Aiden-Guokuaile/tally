@@ -15,10 +15,10 @@ final class UpdateCheckerTests: XCTestCase {
     }
 
     func testParsesLatestRelease() throws {
-        let json = #"{"tag_name":"v1.2.0","html_url":"https://github.com/Aiden-Guokuaile/tally/releases/tag/v1.2.0","assets":[]}"#
+        let json = #"{"tag_name":"v1.2.0","html_url":"https://github.com/guokuaile/tally/releases/tag/v1.2.0","assets":[]}"#
         let release = try XCTUnwrap(UpdateChecker.parse(Data(json.utf8)))
         XCTAssertEqual(release.version, "1.2.0")
-        XCTAssertEqual(release.page.absoluteString, "https://github.com/Aiden-Guokuaile/tally/releases/tag/v1.2.0")
+        XCTAssertEqual(release.page.absoluteString, "https://github.com/guokuaile/tally/releases/tag/v1.2.0")
         XCTAssertNil(UpdateChecker.parse(Data(#"{"message":"Not Found"}"#.utf8)))
         XCTAssertNil(UpdateChecker.parse(Data(#"{"tag_name":"latest","html_url":"https://x"}"#.utf8)))
     }

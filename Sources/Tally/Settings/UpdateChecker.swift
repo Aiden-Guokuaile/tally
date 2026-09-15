@@ -9,7 +9,7 @@ final class UpdateChecker {
 
     static let shared = UpdateChecker()
 
-    static let latestURL = URL(string: "https://api.github.com/repos/Aiden-Guokuaile/tally/releases/latest")!
+    static let latestURL = URL(string: "https://api.github.com/repos/guokuaile/tally/releases/latest")!
     static let interval: TimeInterval = 24 * 3600
 
     struct Release: Equatable {

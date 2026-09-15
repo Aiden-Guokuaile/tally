@@ -133,7 +133,7 @@ open -a Tally --args --demo --open network    # 静态截图：钉住展开到�
 | 文件架 | 开关、新截图自动放进来（开的时候选截图文件夹）、保留多久（文件默认 1 天、截图默认 30 分钟，到点清）、存放位置（在访达中显示）、已暂存几项、清空（[shelf.md](shelf.md)） |
 | hook | 两侧 hook 行（状态 + 安装 / 移除，见 [hooks.md](hooks.md)） |
 | 用量 | 各家提供方开关；DeepSeek、Kimi、GLM、New API 每家一节：开关、现在用的是哪份凭据（手填 / Claude Code 设置 / Kimi Code / zcode / opencode）、手填的 key 与区（New API 是站点地址、访问令牌、用户 ID）、「现在查一次」（只重查这一家，不占 60 秒节流），见 [ai.md](ai.md)「国内几家与 New API」 |
-| 关于 | 原「帮助」页：48pt 图标、「Tally」24pt、版本行读 `CFBundleShortVersionString`、「本应用由「Aiden-Guokuaile」个人开发并所有」、个人开发者及隐私声明（不列移植模块）；版本与作者之间显示喜狮图案（160pt）及「喜狮护航 · 用量有数」：原图是白底黑线稿，缩到 480px、按亮度转成透明底（亮度 235 以上当白底），产物 `Resources/about/mascot.png` 进仓库、打包时拷进 app；界面按模板图着色，深浅色模式都跟着文字色——直接放白底原图，深色模式下是一整块白方块。辅助功能读「喜狮图案」；下面两段短说明：装 hook、卸载（面板怎么用、数据从哪来在界面上一看就知道，不写） |
+| 关于 | 原「帮助」页：48pt 图标、「Tally」24pt、版本行读 `CFBundleShortVersionString`、「本应用由「guokuaile」个人开发并所有」、个人开发者及隐私声明（不列移植模块）；版本与作者之间显示喜狮图案（160pt）及「喜狮护航 · 用量有数」：原图是白底黑线稿，缩到 480px、按亮度转成透明底（亮度 235 以上当白底），产物 `Resources/about/mascot.png` 进仓库、打包时拷进 app；界面按模板图着色，深浅色模式都跟着文字色——直接放白底原图，深色模式下是一整块白方块。辅助功能读「喜狮图案」；下面两段短说明：装 hook、卸载（面板怎么用、数据从哪来在界面上一看就知道，不写） |
 
 开关的落点见 [monitors.md](monitors.md)。设置文件是 `~/Library/Application Support/Tally/preferences.json`，解码一律 `decodeIfPresent` 取默认；读失败记日志按默认值，写失败在「通用」顶部红字（内存里已改，重启会回到磁盘上的值）。
 

@@ -50,7 +50,7 @@ Claude 侧同理（`ClaudeHome`）：`CLAUDE_CONFIG_DIR` 设了，Claude Code �
 
 ## 发版与更新
 
-发版（脚本只留在维护者本地）一次做完：编 app → 打 DMG → 以 `Tally.dmg` 为名传到公开仓库的 Release（tag `v<CFBundleShortVersionString>`，打在公开仓库 main 最新的提交上，所以先让公开仓库是这次要发的代码）→ 算 sha256，写进 `Aiden-Guokuaile/homebrew-tally` 的 `Casks/tally.rb` 推上去（仓库不存在就建）。版本号三段式；同一个 tag 发过就报错退出。
+发版（脚本只留在维护者本地）一次做完：编 app → 打 DMG → 以 `Tally.dmg` 为名传到公开仓库的 Release（tag `v<CFBundleShortVersionString>`，打在公开仓库 main 最新的提交上，所以先让公开仓库是这次要发的代码）→ 算 sha256，写进 `guokuaile/homebrew-tally` 的 `Casks/tally.rb` 推上去（仓库不存在就建）。版本号三段式；同一个 tag 发过就报错退出。
 
 - **资源名固定 `Tally.dmg`**：README 的下载按钮指着 `releases/latest/download/Tally.dmg`，GitHub 按资源名 302 到最新那个 Release。cask 的 url 却按 tag 钉死：指 latest 的话，下一次发版 sha256 就对不上。
 - **cask 装完清隔离标记**（`postflight_steps` 跑 `xattr -dr com.apple.quarantine`）：DMG 是 ad-hoc 签名、没公证，不清的话每次装、每次升级都要去系统设置点「仍要打开」（macOS 15 起右键打开那条路没了）。Homebrew 官方仓库不收这样的 cask（要求过 Gatekeeper），第三方 tap 可以，boring.notch 同样这么做；`--no-quarantine` 参数 Homebrew 6 起已经没有。
@@ -58,7 +58,7 @@ Claude 侧同理（`ClaudeHome`）：`CLAUDE_CONFIG_DIR` 设了，Claude Code �
 
 DMG 本身：Tally.app + Applications 快捷方式 + 「首次打开必读.txt」，强制重签成 ad-hoc（理由见 [panel.md](panel.md)「打包与安装」）。装好后在设置里点两个「安装」；首次点会话行弹终端自动化授权；查配额不弹钥匙串框（取值走 `/usr/bin/security`，理由见 `ai.md`）。GPL-3：发 DMG 的同时源码要能拿到，仓库公开即可。
 
-**新版本提示**（`UpdateChecker`，设置「通用 → 检查新版本」，默认开）：启动时和之后每 24 小时 `GET https://api.github.com/repos/Aiden-Guokuaile/tally/releases/latest`（不带 token，匿名额度一小时 60 次，远用不完），`tag_name` 去掉开头的 `v` 和 `-` / `+` 后缀、按点拆成整数补零逐段比，比 `CFBundleShortVersionString` 新就在设置「通用」显示一行、刘海垂一条「有新版本」（同一个版本只垂一次，记在 `Preferences.updateNotifiedVersion`）。有 `/opt/homebrew/Caskroom/tally`（或 `/usr/local/…`）就说 `brew upgrade --cask tally`，否则给 Release 页的「去下载」。404（还没发过版）不算失败；403 / 429 说限流；别的失败原因显示在设置里。只提示不替换：DMG 是 ad-hoc 签名，下载下来验不了真假，自动换掉等于替人跑一个没法验证的程序。
+**新版本提示**（`UpdateChecker`，设置「通用 → 检查新版本」，默认开）：启动时和之后每 24 小时 `GET https://api.github.com/repos/guokuaile/tally/releases/latest`（不带 token，匿名额度一小时 60 次，远用不完），`tag_name` 去掉开头的 `v` 和 `-` / `+` 后缀、按点拆成整数补零逐段比，比 `CFBundleShortVersionString` 新就在设置「通用」显示一行、刘海垂一条「有新版本」（同一个版本只垂一次，记在 `Preferences.updateNotifiedVersion`）。有 `/opt/homebrew/Caskroom/tally`（或 `/usr/local/…`）就说 `brew upgrade --cask tally`，否则给 Release 页的「去下载」。404（还没发过版）不算失败；403 / 429 说限流；别的失败原因显示在设置里。只提示不替换：DMG 是 ad-hoc 签名，下载下来验不了真假，自动换掉等于替人跑一个没法验证的程序。
 
 ## 验证
 
@@ -68,7 +68,7 @@ swift test --filter 'HookInstallerTests|HookSelfCheckTests|UpdateCheckerTests'
 H='"/Applications/Tally.app/Contents/MacOS/tally-hook"'
 jq --arg c "$H" '[.hooks | to_entries[] | .value[] | .hooks[] | select(.command == $c)] | length' ~/.claude/settings.json
 jq --arg c "$H --provider codex" '[.hooks | to_entries[] | .value[] | .hooks[] | select(.command == $c)] | length' ~/.codex/hooks.json
-curl -sLo /tmp/Tally.dmg https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg && hdiutil verify /tmp/Tally.dmg
+curl -sLo /tmp/Tally.dmg https://github.com/guokuaile/tally/releases/latest/download/Tally.dmg && hdiutil verify /tmp/Tally.dmg
 ```
 
-用例：文件不存在 / 0 字节 / 非法 JSON（抛错不覆盖）、别的 hook 保留且序号不变、安装两次相同、旧组原位替换、缺事件报 `pointsElsewhere`、Codex 哈希就地改写、备份存在、移除只删 Tally 组并删空键、移除只重写原本信任的、哈希失败回滚 JSON；心跳（合法事件写、校验不过不写、写在会话目录上一层）、最近收到事件的文案（没收到过 / 刚刚 / 分钟 / 小时 / 天）、自检结果五种文案、没装好不跑、拿编出来的 hook 按配置里的命令格式真跑一次自检。Claude 那条 `jq` 打印 7，Codex 那条打印 6。新版本（补零比较、后缀去掉、认不出的版本号不提示、解析 Release、Homebrew 判定、提示条同一版本同一个 id）。真发一次版才算验过：Release 页有 `Tally.dmg`、`curl -sI https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg` 是 302、tap 仓库里 cask 的 sha256 等于下载下来的 `shasum -a 256 /tmp/Tally.dmg`。
+用例：文件不存在 / 0 字节 / 非法 JSON（抛错不覆盖）、别的 hook 保留且序号不变、安装两次相同、旧组原位替换、缺事件报 `pointsElsewhere`、Codex 哈希就地改写、备份存在、移除只删 Tally 组并删空键、移除只重写原本信任的、哈希失败回滚 JSON；心跳（合法事件写、校验不过不写、写在会话目录上一层）、最近收到事件的文案（没收到过 / 刚刚 / 分钟 / 小时 / 天）、自检结果五种文案、没装好不跑、拿编出来的 hook 按配置里的命令格式真跑一次自检。Claude 那条 `jq` 打印 7，Codex 那条打印 6。新版本（补零比较、后缀去掉、认不出的版本号不提示、解析 Release、Homebrew 判定、提示条同一版本同一个 id）。真发一次版才算验过：Release 页有 `Tally.dmg`、`curl -sI https://github.com/guokuaile/tally/releases/latest/download/Tally.dmg` 是 302、tap 仓库里 cask 的 sha256 等于下载下来的 `shasum -a 256 /tmp/Tally.dmg`。

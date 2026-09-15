@@ -5,13 +5,14 @@
 # Tally
 
 **把 Claude Code / Codex 的会话状态和 AI 配额放进 MacBook 刘海**<br>
-谁在等你、谁跑完了、额度还剩多少，鼠标一停就知道。
+谁在等你、谁跑完了、额度还剩多少，鼠标一停就知道。<br>
+<sub>A macOS notch app for Claude Code and Codex: session status, quota and usage monitor.</sub>
 
 简体中文 | [English](README.en.md)
 
-<a href="https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg"><img src="docs/images/download-zh.svg" width="240" alt="下载 Tally（macOS 版）"></a>
+<a href="https://github.com/guokuaile/tally/releases/latest/download/Tally.dmg"><img src="docs/images/download-zh.svg" width="240" alt="下载 Tally（macOS 版）"></a>
 
-或者用 Homebrew 装（免放行）：`brew install --cask aiden-guokuaile/tally/tally`
+或者用 Homebrew 装（免放行）：`brew install --cask guokuaile/tally/tally`
 
 ![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
 
@@ -19,7 +20,7 @@
 
 </div>
 
-同时开着几个 agent 会话，得不停切窗口看谁在等审批、谁跑完了；配额快见底了也不知道。Tally 把这些收进刘海：平时和刘海融为一体，有事才往下垂一条提示；鼠标停上去就展开成一整块面板。
+同时开着几个 Claude Code / Codex 会话，得不停切窗口看谁在等审批、谁跑完了；配额快见底了也不知道。Tally 是一个 macOS 刘海 app（Dynamic Island 式的交互）：靠 hook 拿到每个会话的状态，配额和用量从各家接口与本地日志读；平时和刘海融为一体，有事才往下垂一条提示，鼠标停上去就展开成一整块面板。
 
 ## 为什么用 Tally
 
@@ -30,6 +31,14 @@
 - **本地、原生、零依赖**：SwiftUI + AppKit，只读各家登录留下的 token（不刷新、不往钥匙串写），没有统计上报。
 
 顺手还带着：网速与代理、内存与电池、在跑的 app、文件架、保持唤醒（含合盖不休眠），和一只可选的菜单栏小恐龙。
+
+## 和同类工具的区别
+
+| 你可能已经在用 | 它们侧重 | Tally 补上的 |
+|---|---|---|
+| [CodexBar](https://github.com/steipete/CodexBar)、[ccusage](https://github.com/ryoppippi/ccusage)、[Claude Code Usage Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor) | 菜单栏或终端里看 Claude / Codex 的用量与配额 | 用量之外还有会话状态：谁在等你审批、谁跑完了，点一行跳回那个终端标签或 tmux pane，关掉的会话一键接着聊 |
+| [Claude Pulse](https://claudepulse.app/)、[Vibe Island](https://vibeisland.app/)、[AgentNotch](https://www.agentnotch.app/)、[vibe-notch](https://github.com/farouqaldori/vibe-notch)、[notchi](https://github.com/sk-ruban/notchi) | 刘海里看 Claude Code（部分也支持 Codex、Cursor）的会话 | 打断、API 报错、主回合结束后子 agent 还在跑，这些 hook 不报的状态也判得准；配额覆盖 Claude、Codex、Cursor、Antigravity、DeepSeek、Kimi、智谱 GLM、New API 八家，带花费与配速线 |
+| [Atoll](https://github.com/Ebullioscopic/Atoll)、[boring.notch](https://github.com/TheBoredTeam/boring.notch) | 刘海里放音乐、文件架、系统信息 | 以 agent 会话和 AI 配额为主，网络、系统、应用、文件架顺带；零依赖、只读各家 token、没有统计上报 |
 
 ## 五个页面
 
@@ -75,12 +84,12 @@ https://github.com/user-attachments/assets/118fcdd1-92fb-4f42-9dde-9b452a773ada
 **Homebrew**（推荐，装完不用再放行）：
 
 ```bash
-brew install --cask aiden-guokuaile/tally/tally
+brew install --cask guokuaile/tally/tally
 ```
 
 **或者下载 DMG**：
 
-1. 下载 [Tally.dmg](https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg)，把 Tally 拖进「应用程序」。
+1. 下载 [Tally.dmg](https://github.com/guokuaile/tally/releases/latest/download/Tally.dmg)，把 Tally 拖进「应用程序」。
 2. 在终端放行一次，再从「应用程序」里打开：
 
    ```bash

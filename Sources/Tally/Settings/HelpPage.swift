@@ -71,7 +71,7 @@ struct HelpPage: View {
             }
             Text("喜狮护航 · 用量有数")
                 .font(.system(size: 12, weight: .medium))
-            Text("本应用由「Aiden-Guokuaile」个人开发并所有")
+            Text("本应用由「guokuaile」个人开发并所有")
                 .font(.system(size: 13, weight: .medium))
                 .padding(.top, 4)
             Text("个人开发者作品，非商业组织出品，不收集任何用户数据。")

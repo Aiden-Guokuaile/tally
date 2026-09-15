@@ -9,9 +9,9 @@ Who is waiting on you, what just finished, how much quota is left — hover and 
 
 [简体中文](README.md) | English
 
-<a href="https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg"><img src="docs/images/download-en.svg" width="268" alt="Download Tally for macOS"></a>
+<a href="https://github.com/guokuaile/tally/releases/latest/download/Tally.dmg"><img src="docs/images/download-en.svg" width="268" alt="Download Tally for macOS"></a>
 
-Or with Homebrew (no quarantine step): `brew install --cask aiden-guokuaile/tally/tally`
+Or with Homebrew (no quarantine step): `brew install --cask guokuaile/tally/tally`
 
 ![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black) ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-arm64-black) ![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)
 
@@ -22,7 +22,7 @@ Or with Homebrew (no quarantine step): `brew install --cask aiden-guokuaile/tall
 > [!NOTE]
 > The interface is currently **Simplified Chinese only**.
 
-With several agent sessions open you keep switching windows to see which one needs approval and which one is done, and you rarely notice a quota running out. Tally tucks all of that into the notch: it blends in with the notch until something happens, drops a small toast when it does, and expands into a full panel when you hover.
+With several Claude Code / Codex sessions open you keep switching windows to see which one needs approval and which one is done, and you rarely notice a quota running out. Tally is a native macOS notch app (Dynamic Island-style) that tucks all of that into the notch: hooks report each session's state, quotas and usage come from each provider's API and local logs; it blends in with the notch until something happens, drops a small toast when it does, and expands into a full panel when you hover.
 
 ## Why Tally
 
@@ -33,6 +33,14 @@ With several agent sessions open you keep switching windows to see which one nee
 - **Local, native, dependency-free**: SwiftUI + AppKit; reads the tokens each tool already stored, read-only (never refreshes them, never writes to the Keychain); no telemetry.
 
 Also on board: network throughput and proxy status, memory and battery, running apps, a file shelf, keep-awake (including with the lid closed), and an optional menu bar dinosaur.
+
+## How Tally compares
+
+| If you already use | What they focus on | What Tally adds |
+|---|---|---|
+| [CodexBar](https://github.com/steipete/CodexBar), [ccusage](https://github.com/ryoppippi/ccusage), [Claude Code Usage Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor) | Claude / Codex usage and quotas in the menu bar or terminal | Session state on top of usage: who is waiting for approval, who just finished; click a row to jump to that terminal tab or tmux pane, resume a closed session in one click |
+| [Claude Pulse](https://claudepulse.app/), [Vibe Island](https://vibeisland.app/), [AgentNotch](https://www.agentnotch.app/), [vibe-notch](https://github.com/farouqaldori/vibe-notch), [notchi](https://github.com/sk-ruban/notchi) | Claude Code sessions in the notch (some also cover Codex or Cursor) | States the hooks never report (Esc interrupts, API errors, subagents still running after the main turn) are still judged correctly; quotas for eight providers (Claude, Codex, Cursor, Antigravity, DeepSeek, Kimi, Zhipu GLM, New API) with spend and a pace line |
+| [Atoll](https://github.com/Ebullioscopic/Atoll), [boring.notch](https://github.com/TheBoredTeam/boring.notch) | Music, file shelf and system info in the notch | Agent sessions and AI quotas first, with network, system, apps and a shelf on the side; zero dependencies, read-only tokens, no telemetry |
 
 ## Pages
 
@@ -78,12 +86,12 @@ Turn it on in Settings → 面板 (Panel); off by default. The dinosaur sleeps, 
 **Homebrew** (recommended, no quarantine step needed):
 
 ```bash
-brew install --cask aiden-guokuaile/tally/tally
+brew install --cask guokuaile/tally/tally
 ```
 
 **Or download the DMG**:
 
-1. Download [Tally.dmg](https://github.com/Aiden-Guokuaile/tally/releases/latest/download/Tally.dmg) and drag Tally into Applications.
+1. Download [Tally.dmg](https://github.com/guokuaile/tally/releases/latest/download/Tally.dmg) and drag Tally into Applications.
 2. Clear the quarantine flag once in Terminal, then launch it from Applications:
 
    ```bash
